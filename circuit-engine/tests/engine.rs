@@ -804,6 +804,64 @@ L 160 -32 160 -48 0 1 false 5 0
 }
 
 #[test]
+fn seven_seg_decoder_digit_one() {
+    let mut c = parse_dump(
+        "\
+g 160 240 160 256 0
+L 0 96 16 96 0 1 false 5 0
+197 0 0 64 48 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(2);
+    assert!(v[0].abs() < 0.02, "a={v:?}");
+    assert!((v[1] - 5.0).abs() < 0.02, "b={v:?}");
+    assert!((v[2] - 5.0).abs() < 0.02, "c={v:?}");
+    assert!(v[3].abs() < 0.02, "d={v:?}");
+}
+
+#[test]
+fn seqgen_first_bit_on_rising_clock() {
+    let mut c = parse_dump(
+        "\
+g 160 64 160 80 0
+L 0 0 16 0 0 0 false 5 0
+188 0 0 64 48 10 8 1
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let q0 = c.element_volts(2)[1];
+    assert!(q0.abs() < 0.5, "Q before clock={q0}");
+    c.toggle(1);
+    c.step().unwrap();
+    c.step().unwrap();
+    let q1 = c.element_volts(2)[1];
+    assert!(
+        (q1 - 5.0).abs() < 0.02,
+        "Q after rising CLK={q1} volts={:?}",
+        c.element_volts(2)
+    );
+}
+
+#[test]
+fn seven_seg_logic_inputs_parse() {
+    let mut c = parse_dump(
+        "\
+g 160 160 160 176 0
+L 0 0 16 0 0 1 false 5 0
+157 0 0 64 48 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert_eq!(c.element_volts(2).len(), 7);
+}
+
+#[test]
 fn fuse_and_ldr_parse() {
     let mut c = parse_dump(
         "\

@@ -545,6 +545,49 @@ pub fn parse_dump(text: &str) -> Result<Circuit> {
                 let data = read_packed_bits(&mut tok, bits);
                 Box::new(ChipElm::piso(x1, y1, x2, y2, flags, bits, hv, data))
             }
+            188 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let (bit_count, data) = if (flags & 2) == 0 {
+                    let raw = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                    (8, vec![raw])
+                } else {
+                    let bit_count = tok.next().and_then(|s| s.parse().ok()).unwrap_or(8);
+                    let mut data = Vec::new();
+                    for s in tok.by_ref() {
+                        match s.parse::<i32>() {
+                            Ok(v) => data.push(v),
+                            Err(_) => break,
+                        }
+                    }
+                    if data.is_empty() {
+                        data.push(0);
+                    }
+                    (bit_count, data)
+                };
+                Box::new(ChipElm::seq_gen(x1, y1, x2, y2, flags, hv, bit_count, data))
+            }
+            197 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let segment_type = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                Box::new(ChipElm::seven_seg_decoder(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    hv,
+                    segment_type,
+                ))
+            }
+            157 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let base = tok.next().and_then(|s| s.parse().ok()).unwrap_or(7);
+                let extra = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                let diode = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                Box::new(ChipElm::seven_seg(
+                    x1, y1, x2, y2, flags, hv, base, extra, diode,
+                ))
+            }
             other => {
                 return Err(SimError::Parse(format!(
                     "unsupported element dump type {other}"

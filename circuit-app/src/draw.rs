@@ -530,7 +530,10 @@ fn draw_element(
         | ElementKind::Counter2
         | ElementKind::RingCounter
         | ElementKind::SipoShift
-        | ElementKind::PisoShift => {
+        | ElementKind::PisoShift
+        | ElementKind::SeqGen
+        | ElementKind::SevenSegDecoder
+        | ElementKind::SevenSeg => {
             multi_star(painter, pts, volts, opts.voltage_range, w);
         }
     }

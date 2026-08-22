@@ -223,6 +223,24 @@ L 0 64 16 64 0 0 false 5 0
 189 0 0 64 48 0 4
 ",
     },
+    Example {
+        id: "decoder",
+        name: "7-seg decoder (1)",
+        dump: "\
+g 160 240 160 256 0
+L 0 96 16 96 0 1 false 5 0
+197 0 0 64 48 0
+",
+    },
+    Example {
+        id: "seqgen",
+        name: "Sequence generator",
+        dump: "\
+g 160 64 160 80 0
+L 0 0 16 0 0 0 false 5 0
+188 0 0 64 48 10 8 1
+",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Example> {

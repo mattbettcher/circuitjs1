@@ -22,6 +22,10 @@ const CTR_NEG_EDGE: i32 = 8;
 const RING_CLOCK_INHIBIT: i32 = 2;
 const RING_RESET_HIGH: i32 = 4;
 const PISO_NEW: i32 = 2;
+const SEQ_PLAY_ONCE: i32 = 4;
+const SEQ_RESET: i32 = 8;
+const DEC_BLANK: i32 = 1 << 1;
+const DEC_BLANK_F: i32 = 1 << 2;
 const ADDER_BITS: i32 = 2;
 
 #[derive(Clone, Debug)]
@@ -123,6 +127,18 @@ enum ChipLogic {
         load_state: bool,
         data_pin_index: usize,
     },
+    SeqGen {
+        bit_position: usize,
+        bit_count: usize,
+        data: Vec<i32>,
+        clock_state: bool,
+    },
+    SevenSegDecoder {
+        segment_count: usize,
+        has_blank: bool,
+        blank_on_f: bool,
+    },
+    SevenSeg,
 }
 
 /// ChipElm digital device: each output pin is a voltage source to ground.
@@ -768,6 +784,166 @@ impl ChipElm {
         )
     }
 
+    pub fn seq_gen(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        high_voltage: f64,
+        bit_count: usize,
+        data: Vec<i32>,
+    ) -> Self {
+        let _ = (x2, y2);
+        let has_reset = (flags & SEQ_RESET) != 0;
+        let n = if has_reset { 3 } else { 2 };
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        pins[0] = ChipPin::inn(0, SIDE_W);
+        pins[1] = ChipPin::out(1, SIDE_E, false);
+        if has_reset {
+            pins[2] = ChipPin::inn(1, SIDE_W);
+        }
+        let mut bit_count = bit_count;
+        if bit_count > data.len() * 32 {
+            bit_count = data.len() * 32;
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            2,
+            2,
+            pins,
+            high_voltage,
+            &[],
+            ElementKind::SeqGen,
+            ChipLogic::SeqGen {
+                bit_position: 0,
+                bit_count,
+                data,
+                clock_state: false,
+            },
+            false,
+        )
+    }
+
+    pub fn seven_seg_decoder(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        high_voltage: f64,
+        segment_type: i32,
+    ) -> Self {
+        let _ = (x2, y2);
+        let segment_count = match segment_type {
+            1 => 14,
+            2 => 16,
+            _ => 7,
+        };
+        let has_blank = (flags & DEC_BLANK) != 0;
+        let n = segment_count + 4 + has_blank as usize;
+        let input_pins_y = 4;
+        let size_y = segment_count.max(input_pins_y + has_blank as usize) as i32;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        for i in 0..segment_count {
+            pins[i] = ChipPin::out(i as i32, SIDE_E, false);
+        }
+        bit_pins_rev(&mut pins, 4, 0, SIDE_W, segment_count, false, false);
+        if has_blank {
+            pins[segment_count + 4] = ChipPin::inn(input_pins_y as i32, SIDE_W);
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            3,
+            size_y,
+            pins,
+            high_voltage,
+            &[],
+            ElementKind::SevenSegDecoder,
+            ChipLogic::SevenSegDecoder {
+                segment_count,
+                has_blank,
+                blank_on_f: (flags & DEC_BLANK_F) != 0,
+            },
+            false,
+        )
+    }
+
+    pub fn seven_seg(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        high_voltage: f64,
+        base_segment_count: usize,
+        extra_segment: i32,
+        diode_direction: i32,
+    ) -> Self {
+        let _ = (x2, y2);
+        let base = match base_segment_count {
+            14 => 14,
+            16 => 16,
+            _ => 7,
+        };
+        let mut segment_count = base;
+        if extra_segment > 0 {
+            segment_count += 1;
+        }
+        let (pin_count, common_pin) = if diode_direction == 0 {
+            (segment_count, None)
+        } else {
+            (segment_count + 1, Some(segment_count))
+        };
+        let left = (base + 1) / 2;
+        let mut size_y = left as i32;
+        let size_x = if base == 7 {
+            if pin_count > 7 {
+                5
+            } else {
+                4
+            }
+        } else {
+            5
+        };
+        if pin_count as i32 > size_y * 2 {
+            size_y += 1;
+        }
+        let backward = segment_count == 7 && diode_direction == 0 && extra_segment == 0;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); pin_count];
+        for i in 0..left {
+            pins[i] = ChipPin::inn(i as i32, SIDE_W);
+        }
+        let mut s = if backward { 1 } else { 0 };
+        let rest_side = if backward { SIDE_S } else { SIDE_E };
+        for i in left..segment_count {
+            pins[i] = ChipPin::inn(s, rest_side);
+            s += 1;
+        }
+        if let Some(cp) = common_pin {
+            let (side, pos) = if segment_count != 7 {
+                (SIDE_W, left as i32)
+            } else {
+                (SIDE_E, s)
+            };
+            pins[cp] = ChipPin::inn(pos, side);
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            size_x,
+            size_y,
+            pins,
+            high_voltage,
+            &[],
+            ElementKind::SevenSeg,
+            ChipLogic::SevenSeg,
+            false,
+        )
+    }
+
     fn write_output(&mut self, n: usize, value: bool) {
         if n < self.pins.len() {
             self.pins[n].value = value;
@@ -808,6 +984,8 @@ impl ChipElm {
             ElementKind::RingCounter => self.exec_ring(),
             ElementKind::SipoShift => self.exec_sipo(),
             ElementKind::PisoShift => self.exec_piso(),
+            ElementKind::SeqGen => self.exec_seqgen(),
+            ElementKind::SevenSegDecoder => self.exec_decoder(),
             _ => {}
         }
     }
@@ -1266,7 +1444,257 @@ impl ChipElm {
             }
         }
     }
+
+    fn exec_seqgen(&mut self) {
+        let clk = self.pin(0);
+        let rst = (self.ports.flags & SEQ_RESET) != 0 && self.pin(2);
+        if rst {
+            if let ChipLogic::SeqGen {
+                bit_position,
+                clock_state,
+                ..
+            } = &mut self.logic
+            {
+                *bit_position = 0;
+                *clock_state = clk;
+            }
+            self.next_seq_bit();
+            return;
+        }
+        let edge = matches!(
+            &self.logic,
+            ChipLogic::SeqGen { clock_state, .. } if clk != *clock_state
+        );
+        if edge {
+            if let ChipLogic::SeqGen {
+                clock_state: cs, ..
+            } = &mut self.logic
+            {
+                *cs = clk;
+            }
+            if clk {
+                self.next_seq_bit();
+            }
+        }
+    }
+
+    fn next_seq_bit(&mut self) {
+        let play_once = (self.ports.flags & SEQ_PLAY_ONCE) != 0;
+        let q = match &mut self.logic {
+            ChipLogic::SeqGen {
+                bit_position,
+                bit_count,
+                data,
+                ..
+            } => {
+                if data.is_empty() || *bit_count == 0 {
+                    Some(false)
+                } else if *bit_position >= *bit_count && play_once {
+                    Some(false)
+                } else {
+                    if *bit_position >= *bit_count {
+                        *bit_position = 0;
+                    }
+                    let idx = *bit_position / 32;
+                    let bit = *bit_position % 32;
+                    let v = data
+                        .get(idx)
+                        .is_some_and(|w| ((*w as u32) & (1u32 << bit)) != 0);
+                    *bit_position += 1;
+                    Some(v)
+                }
+            }
+            _ => None,
+        };
+        if let Some(v) = q {
+            self.write_output(1, v);
+        }
+    }
+
+    fn exec_decoder(&mut self) {
+        let ChipLogic::SevenSegDecoder {
+            segment_count,
+            has_blank,
+            blank_on_f,
+        } = self.logic
+        else {
+            return;
+        };
+        let mut input = 0usize;
+        if self.pin(segment_count) {
+            input += 8;
+        }
+        if self.pin(segment_count + 1) {
+            input += 4;
+        }
+        if self.pin(segment_count + 2) {
+            input += 2;
+        }
+        if self.pin(segment_count + 3) {
+            input += 1;
+        }
+        let en = !(has_blank && !self.pin(segment_count + 4));
+        if !en || (input == 15 && blank_on_f) {
+            for i in 0..segment_count {
+                self.write_output(i, false);
+            }
+            return;
+        }
+        for i in 0..segment_count {
+            self.write_output(i, decoder_segment(segment_count, input, i));
+        }
+    }
 }
+
+fn decoder_segment(seg_count: usize, digit: usize, i: usize) -> bool {
+    let digit = digit.min(15);
+    match seg_count {
+        14 => SYMBOLS14[digit][i],
+        16 => SYMBOLS16[digit][i],
+        _ => SYMBOLS7[digit][i],
+    }
+}
+
+/// a–g for hex digits 0–F.
+const SYMBOLS7: [[bool; 7]; 16] = [
+    [true, true, true, true, true, true, false],
+    [false, true, true, false, false, false, false],
+    [true, true, false, true, true, false, true],
+    [true, true, true, true, false, false, true],
+    [false, true, true, false, false, true, true],
+    [true, false, true, true, false, true, true],
+    [true, false, true, true, true, true, true],
+    [true, true, true, false, false, false, false],
+    [true, true, true, true, true, true, true],
+    [true, true, true, false, false, true, true],
+    [true, true, true, false, true, true, true],
+    [false, false, true, true, true, true, true],
+    [true, false, false, true, true, true, false],
+    [false, true, true, true, true, false, true],
+    [true, false, false, true, true, true, true],
+    [true, false, false, false, true, true, true],
+];
+
+const SYMBOLS14: [[bool; 14]; 16] = [
+    [
+        true, true, true, true, true, true, false, false, true, false, false, false, true, false,
+    ],
+    [
+        false, true, true, false, false, false, false, false, true, false, false, false, false,
+        false,
+    ],
+    [
+        true, true, false, true, true, false, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, true, true, true, false, false, false, false, false, true, false, false, false, true,
+    ],
+    [
+        false, true, true, false, false, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, false, true, true, false, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, false, true, true, true, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, true, false, false, true, false,
+        false,
+    ],
+    [
+        true, true, true, true, true, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, true, true, true, false, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, true, true, false, true, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, true, true, true, false, false, false, true, false, true, false, true, false, false,
+    ],
+    [
+        true, false, false, true, true, true, false, false, false, false, false, false, false,
+        false,
+    ],
+    [
+        true, true, true, true, false, false, false, true, false, false, false, true, false, false,
+    ],
+    [
+        true, false, false, true, true, true, false, false, false, true, false, false, false, true,
+    ],
+    [
+        true, false, false, false, true, true, false, false, false, true, false, false, false, true,
+    ],
+];
+
+const SYMBOLS16: [[bool; 16]; 16] = [
+    [
+        true, true, true, true, true, true, true, true, false, false, true, false, false, false,
+        true, false,
+    ],
+    [
+        false, false, true, true, false, false, false, false, false, false, true, false, false,
+        false, false, false,
+    ],
+    [
+        true, true, true, false, true, true, true, false, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, true, true, true, true, false, false, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        false, false, true, true, false, false, false, true, false, false, false, true, false,
+        false, false, true,
+    ],
+    [
+        true, true, false, true, true, true, false, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, false, true, true, true, true, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, false, false, false, false, false, false, false, false, true, false, false,
+        true, false, false,
+    ],
+    [
+        true, true, true, true, true, true, true, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, true, true, true, true, false, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, true, true, false, false, true, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, true, true, true, true, false, false, false, true, false, true, false, true,
+        false, false,
+    ],
+    [
+        true, true, false, false, true, true, true, true, false, false, false, false, false, false,
+        false, false,
+    ],
+    [
+        true, true, true, true, true, true, false, false, false, true, false, false, false, true,
+        false, false,
+    ],
+    [
+        true, true, false, false, true, true, true, true, false, false, false, true, false, false,
+        false, true,
+    ],
+    [
+        true, true, false, false, false, false, true, true, false, false, false, true, false,
+        false, false, true,
+    ],
+];
 
 /// MSB-first bit pins, matching ChipElm `makeBitPins` default order.
 fn bit_pins(
@@ -1443,6 +1871,9 @@ impl Element for ChipElm {
         }
         if let ChipLogic::Counter2 { carry, .. } = &mut self.logic {
             *carry = false;
+        }
+        if let ChipLogic::SeqGen { bit_position, .. } = &mut self.logic {
+            *bit_position = 0;
         }
     }
 }

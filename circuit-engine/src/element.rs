@@ -72,6 +72,9 @@ pub enum ElementKind {
     RingCounter,
     SipoShift,
     PisoShift,
+    SeqGen,
+    SevenSegDecoder,
+    SevenSeg,
 }
 
 impl ElementKind {
@@ -146,6 +149,9 @@ impl ElementKind {
             Self::RingCounter => "ring counter",
             Self::SipoShift => "SIPO shift register",
             Self::PisoShift => "PISO shift register",
+            Self::SeqGen => "sequence generator",
+            Self::SevenSegDecoder => "7-segment decoder",
+            Self::SevenSeg => "7-segment display",
         }
     }
 }
