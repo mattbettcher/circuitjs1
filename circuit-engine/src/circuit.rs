@@ -109,6 +109,26 @@ impl Circuit {
         self.ctx.matrices.len()
     }
 
+    pub fn element_count(&self) -> usize {
+        self.elements.len()
+    }
+
+    /// Voltages and currents at the current time.
+    pub fn snapshot(&self) -> crate::snapshot::Snapshot {
+        crate::snapshot::Snapshot {
+            t: self.t(),
+            node_volts: (0..self.node_count())
+                .map(|n| self.node_voltage(n))
+                .collect(),
+            elm_volts: (0..self.elements.len())
+                .map(|i| self.elements[i].volts().to_vec())
+                .collect(),
+            elm_currents: (0..self.elements.len())
+                .map(|i| self.elements[i].current())
+                .collect(),
+        }
+    }
+
     pub fn reset(&mut self) {
         self.ctx.t = 0.0;
         self.ctx.time_step = self.max_time_step;

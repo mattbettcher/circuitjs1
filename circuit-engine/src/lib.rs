@@ -13,6 +13,7 @@ mod error;
 mod lu;
 mod matrix;
 mod ports;
+mod snapshot;
 
 pub use circuit::Circuit;
 pub use dump::parse_dump;
@@ -20,3 +21,4 @@ pub use element::Element;
 pub use error::{Result, SimError};
 pub use lu::{lu_factor_dense, lu_solve_dense};
 pub use ports::FLAG_BACK_EULER;
+pub use snapshot::Snapshot;

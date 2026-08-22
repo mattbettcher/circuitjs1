@@ -11,6 +11,10 @@ publish = false
 name = "simulate"
 path = "src/bin/simulate.rs"
 
+[[bin]]
+name = "compare"
+path = "src/bin/compare.rs"
+
 [lib]
 name = "circuit_engine"
 path = "src/lib.rs"
