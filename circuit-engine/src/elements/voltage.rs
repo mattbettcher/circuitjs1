@@ -22,6 +22,7 @@ pub struct VoltageElm {
     pub phase_shift: f64,
     pub duty_cycle: f64,
     pub freq_time_zero: f64,
+    pub is_rail: bool,
 }
 
 impl VoltageElm {
@@ -36,7 +37,14 @@ impl VoltageElm {
             phase_shift: 0.0,
             duty_cycle: 0.5,
             freq_time_zero: 0.0,
+            is_rail: false,
         }
+    }
+
+    pub fn rail(x1: i32, y1: i32, x2: i32, y2: i32, volts: f64) -> Self {
+        let mut v = Self::dc(x1, y1, x2, y2, volts);
+        v.is_rail = true;
+        v
     }
 
     pub fn from_dump(
@@ -68,7 +76,28 @@ impl VoltageElm {
             phase_shift: phase,
             duty_cycle,
             freq_time_zero: 0.0,
+            is_rail: false,
         }
+    }
+
+    pub fn from_dump_rail(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        waveform: i32,
+        frequency: f64,
+        max_voltage: f64,
+        bias: f64,
+        phase_shift: f64,
+        duty_cycle: f64,
+    ) -> Self {
+        let mut v = Self::from_dump(
+            x1, y1, x2, y2, flags, waveform, frequency, max_voltage, bias, phase_shift, duty_cycle,
+        );
+        v.is_rail = true;
+        v
     }
 
     pub fn voltage(&self, ctx: &SimContext) -> f64 {
@@ -115,11 +144,29 @@ impl VoltageElm {
 }
 
 impl Element for VoltageElm {
+    fn post_count(&self) -> usize {
+        if self.is_rail {
+            1
+        } else {
+            2
+        }
+    }
     fn posts(&self) -> &[(i32, i32)] {
+        if self.is_rail {
+            &self.ports.posts[..1]
+        } else {
+            &self.ports.posts
+        }
+    }
+    fn geometry(&self) -> &[(i32, i32)] {
         &self.ports.posts
     }
     fn kind(&self) -> ElementKind {
-        ElementKind::Voltage
+        if self.is_rail {
+            ElementKind::Rail
+        } else {
+            ElementKind::Voltage
+        }
     }
     fn primary_value(&self) -> Option<(f64, &'static str)> {
         Some((self.max_voltage, "V"))
@@ -140,6 +187,16 @@ impl Element for VoltageElm {
     }
     fn is_independent_voltage(&self) -> bool {
         true
+    }
+    fn has_ground_connection(&self, _post: usize) -> bool {
+        self.is_rail
+    }
+    fn vs_nodes(&self, _local: usize) -> (usize, usize) {
+        if self.is_rail {
+            (0, self.node(0))
+        } else {
+            (self.node(0), self.node(1))
+        }
     }
     fn set_node(&mut self, post: usize, node: usize) {
         self.ports.set_node(post, node);
@@ -168,7 +225,10 @@ impl Element for VoltageElm {
         } else {
             None
         };
-        ctx.stamp_voltage_source(self.ports.nodes[0], self.ports.nodes[1], self.vs, v);
+        let n1 = if self.is_rail { 0 } else { self.ports.nodes[0] };
+        let n2 = self.ports.nodes[0];
+        let n2 = if self.is_rail { n2 } else { self.ports.nodes[1] };
+        ctx.stamp_voltage_source(n1, n2, self.vs, v);
     }
     fn do_step(&mut self, ctx: &mut SimContext) {
         if self.waveform != WF_DC {

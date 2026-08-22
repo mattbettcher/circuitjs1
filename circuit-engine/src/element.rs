@@ -7,10 +7,26 @@ pub enum ElementKind {
     Capacitor,
     Inductor,
     Voltage,
+    Rail,
     Current,
     Diode,
+    Zener,
+    Led,
     Wire,
     Ground,
+    Switch,
+    SwitchSpdt,
+    LabeledNode,
+    Pot,
+    Probe,
+    Output,
+    TestPoint,
+    Ammeter,
+    OpAmp,
+    Vcvs,
+    Vccs,
+    Transistor,
+    Mosfet,
 }
 
 impl ElementKind {
@@ -20,10 +36,26 @@ impl ElementKind {
             Self::Capacitor => "capacitor",
             Self::Inductor => "inductor",
             Self::Voltage => "voltage source",
+            Self::Rail => "voltage rail",
             Self::Current => "current source",
             Self::Diode => "diode",
+            Self::Zener => "zener",
+            Self::Led => "LED",
             Self::Wire => "wire",
             Self::Ground => "ground",
+            Self::Switch => "switch",
+            Self::SwitchSpdt => "SPDT switch",
+            Self::LabeledNode => "labeled node",
+            Self::Pot => "potentiometer",
+            Self::Probe => "probe",
+            Self::Output => "output",
+            Self::TestPoint => "test point",
+            Self::Ammeter => "ammeter",
+            Self::OpAmp => "op-amp",
+            Self::Vcvs => "VCVS",
+            Self::Vccs => "VCCS",
+            Self::Transistor => "transistor",
+            Self::Mosfet => "MOSFET",
         }
     }
 }
@@ -68,6 +100,10 @@ pub trait Element {
     fn get_connection(&self, _n1: usize, _n2: usize) -> bool {
         true
     }
+    /// Same-matrix coupling (gate↔channel, op-amp terminals, controlled sources).
+    fn get_matrix_connection(&self, n1: usize, n2: usize) -> bool {
+        self.get_connection(n1, n2)
+    }
     fn non_linear(&self) -> bool {
         false
     }
@@ -77,6 +113,19 @@ pub trait Element {
     fn is_independent_voltage(&self) -> bool {
         false
     }
+    /// Shared net name for labeled nodes.
+    fn net_name(&self) -> Option<&str> {
+        None
+    }
+    /// Toggle switch/state. Return true if topology must be re-analyzed.
+    fn toggle(&mut self) -> bool {
+        false
+    }
+    fn position(&self) -> i32 {
+        0
+    }
+    fn set_position(&mut self, _p: i32) {}
+    fn set_slider(&mut self, _t: f64) {}
 
     fn set_node(&mut self, post: usize, node: usize);
     fn node(&self, post: usize) -> usize;

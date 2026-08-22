@@ -10,6 +10,7 @@ mod dump;
 mod element;
 pub mod elements;
 mod error;
+mod geom;
 mod lu;
 mod matrix;
 mod ports;

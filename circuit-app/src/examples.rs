@@ -69,6 +69,55 @@ g 0 100 0 116 0
 g 200 100 200 116 0
 ",
     },
+    Example {
+        id: "switch",
+        name: "Switch + divider",
+        dump: "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+s 100 0 100 100 0 0 false
+w 100 100 0 100 0
+",
+    },
+    Example {
+        id: "rail",
+        name: "Voltage rail",
+        dump: "\
+R 0 0 0 16 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+g 100 0 100 16 0
+",
+    },
+    Example {
+        id: "pot",
+        name: "Potentiometer",
+        dump: "\
+v 0 100 0 0 0 0 40 10 0 0 0.5
+g 0 100 0 116 0
+174 0 0 100 0 0 1000 0.5 Resistance
+g 100 0 100 16 0
+",
+    },
+    Example {
+        id: "opamp",
+        name: "Op-amp follower",
+        dump: "\
+v 48 64 48 32 0 0 40 2 0 0 0.5
+g 48 64 48 80 0
+a 48 16 80 16 8 15 -15 1000000 0 0 100000
+w 80 16 48 0 0
+",
+    },
+    Example {
+        id: "zener",
+        name: "Zener shunt",
+        dump: "\
+v 0 100 0 0 0 0 40 10 0 0 0.5
+r 0 0 100 0 0 1000
+z 100 0 100 100 0 5.6
+w 100 100 0 100 0
+",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Example> {

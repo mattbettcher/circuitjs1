@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fs;
 
-use circuit_engine::{parse_dump, Circuit};
+use circuit_engine::{parse_dump, Circuit, ElementKind};
 use eframe::egui::{self, Color32, ComboBox, Key, RichText, Ui};
 
 use crate::draw::{self, Camera, DrawOpts};
@@ -342,6 +342,12 @@ impl eframe::App for CircuitApp {
                 if let Some(hit) =
                     draw::show_canvas(ui, &self.circuit, &mut self.camera, &opts, self.circuit.t())
                 {
+                    let kind = self.circuit.elements[hit].kind();
+                    if self.selected == Some(hit)
+                        && matches!(kind, ElementKind::Switch | ElementKind::SwitchSpdt)
+                    {
+                        self.circuit.toggle(hit);
+                    }
                     if self.selected != Some(hit) {
                         self.selected = Some(hit);
                         self.scope_v.clear();

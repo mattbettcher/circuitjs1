@@ -9,6 +9,17 @@ pub struct Ports {
 }
 
 impl Ports {
+    pub fn many(posts: Vec<(i32, i32)>, flags: i32) -> Self {
+        let n = posts.len();
+        Self {
+            posts,
+            nodes: vec![0; n],
+            volts: vec![0.0; n],
+            current: 0.0,
+            flags,
+        }
+    }
+
     pub fn two(p1: (i32, i32), p2: (i32, i32), flags: i32) -> Self {
         Self {
             posts: vec![p1, p2],

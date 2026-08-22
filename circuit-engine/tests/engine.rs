@@ -1,7 +1,7 @@
 use circuit_engine::elements::{
     Capacitor, CurrentElm, Diode, Ground, Inductor, Resistor, VoltageElm, Wire,
 };
-use circuit_engine::{parse_dump, Circuit, FLAG_BACK_EULER};
+use circuit_engine::{parse_dump, Circuit, Element, FLAG_BACK_EULER};
 
 fn divider() -> Circuit {
     let mut c = Circuit::new();
@@ -181,4 +181,223 @@ o 2 64 0 4099 5 0.05 0 2 2 3
     let mut c = parse_dump(text).unwrap();
     c.step().unwrap();
     assert!(c.node_count() >= 2);
+}
+
+#[test]
+fn closed_switch_is_wire() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+s 100 0 100 100 0 0 false
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!((c.element_current(1) - 0.005).abs() < 1e-9);
+}
+
+#[test]
+fn open_switch_isolates() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+s 100 0 100 100 0 1 false
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!(c.element_current(1).abs() < 1e-8);
+}
+
+#[test]
+fn switch_toggle_reanalyzes() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+s 100 0 100 100 0 0 false
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.toggle(2);
+    c.step().unwrap();
+    assert!(c.element_current(1).abs() < 1e-8);
+}
+
+#[test]
+fn rail_five_volts() {
+    let mut c = parse_dump(
+        "\
+R 0 0 0 16 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+g 100 0 100 16 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!((c.element_volts(1)[0] - 5.0).abs() < 1e-9);
+    assert!(c.element_volts(1)[1].abs() < 1e-9);
+}
+
+#[test]
+fn labeled_nodes_merge() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+207 100 0 116 0 4 mid
+207 100 100 116 100 4 mid
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!((c.element_current(1) - 0.005).abs() < 1e-9);
+}
+
+#[test]
+fn pot_center_divides() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 10 0 0 0.5
+g 0 100 0 116 0
+174 0 0 100 0 0 1000 0.5 Resistance
+g 100 0 100 16 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(2);
+    assert!((v[0] - 10.0).abs() < 1e-6, "hot={}", v[0]);
+    assert!(v[1].abs() < 1e-6, "cold={}", v[1]);
+    assert!((v[2] - 5.0).abs() < 1e-3, "wiper={}", v[2]);
+}
+
+#[test]
+fn opamp_follower() {
+    use circuit_engine::elements::OpAmpElm;
+    let mut c = Circuit::new();
+    let op = OpAmpElm::new(48, 16, 80, 16);
+    let inn = op.posts()[0];
+    let inp = op.posts()[1];
+    let out = op.posts()[2];
+    c.push(Box::new(VoltageElm::dc(inp.0, inp.1 + 32, inp.0, inp.1, 2.0)));
+    c.push(Box::new(Ground::new(inp.0, inp.1 + 32, inp.0, inp.1 + 48)));
+    c.push(Box::new(op));
+    c.push(Box::new(Wire::new(out.0, out.1, inn.0, inn.1)));
+    c.step().unwrap();
+    let vout = c.element_volts(2)[2];
+    assert!((vout - 2.0).abs() < 0.05, "follower out={vout}");
+}
+
+#[test]
+fn npn_ce_vbe() {
+    use circuit_engine::elements::TransistorElm;
+    let mut c = Circuit::new();
+    let q = TransistorElm::npn(16, 32, 48, 32);
+    let base = q.posts()[0];
+    let coll = q.posts()[1];
+    let emit = q.posts()[2];
+    c.push(Box::new(VoltageElm::dc(0, 100, 0, 0, 5.0)));
+    c.push(Box::new(Resistor::new(0, 0, coll.0, coll.1, 1000.0)));
+    c.push(Box::new(Resistor::new(0, 0, base.0, base.1, 100_000.0)));
+    c.push(Box::new(q));
+    c.push(Box::new(Ground::new(emit.0, emit.1, emit.0, emit.1 + 16)));
+    c.push(Box::new(Wire::new(0, 100, emit.0, emit.1)));
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    let vbe = v[0] - v[2];
+    assert!(vbe > 0.5 && vbe < 0.9, "Vbe={vbe}");
+}
+
+#[test]
+fn nmos_linear_ids() {
+    use circuit_engine::elements::MosfetElm;
+    let mut c = Circuit::new();
+    let m = MosfetElm::nmos(16, 32, 48, 32);
+    let g = m.posts()[0];
+    let s = m.posts()[1];
+    let d = m.posts()[2];
+    c.push(Box::new(VoltageElm::dc(g.0, g.1 + 48, g.0, g.1, 3.0)));
+    c.push(Box::new(VoltageElm::dc(d.0, d.1 + 48, d.0, d.1, 1.0)));
+    c.push(Box::new(m));
+    c.push(Box::new(Ground::new(s.0, s.1, s.0, s.1 + 16)));
+    c.push(Box::new(Wire::new(g.0, g.1 + 48, s.0, s.1)));
+    c.push(Box::new(Wire::new(d.0, d.1 + 48, s.0, s.1)));
+    c.step().unwrap();
+    let ids = c.element_current(2);
+    // beta=0.02, vt=1.5, vgs=3, vds=1 → linear: 0.02*((1.5)*1 - 0.5) = 0.02
+    assert!((ids - 0.02).abs() < 0.005, "Ids={ids}");
+}
+
+#[test]
+fn linear_vccs() {
+    use circuit_engine::elements::VccsElm;
+    let mut c = Circuit::new();
+    let src = VccsElm::new(0, 0, 64, 32, 0, 0.001);
+    let a = src.posts()[0];
+    let b = src.posts()[1];
+    let cp = src.posts()[2];
+    let cm = src.posts()[3];
+    c.push(Box::new(VoltageElm::dc(a.0, a.1 + 16, a.0, a.1, 1.0)));
+    c.push(Box::new(Ground::new(b.0, b.1, b.0, b.1 + 16)));
+    c.push(Box::new(Wire::new(a.0, a.1 + 16, b.0, b.1)));
+    c.push(Box::new(src));
+    c.push(Box::new(Resistor::new(cp.0, cp.1, cm.0, cm.1, 1000.0)));
+    c.step().unwrap();
+    let i = c.element_current(3);
+    assert!((i - 0.001).abs() < 1e-6, "I={i}");
+}
+
+#[test]
+fn spdt_routes_common() {
+    use circuit_engine::elements::Switch2Elm;
+    let sw = Switch2Elm::new(0, 0, 48, 0);
+    let t0 = sw.posts()[1];
+    let t1 = sw.posts()[2];
+    let mut c = Circuit::new();
+    c.push(Box::new(VoltageElm::dc(0, 16, 0, 0, 5.0)));
+    c.push(Box::new(Ground::new(0, 16, 0, 32)));
+    c.push(Box::new(sw));
+    c.push(Box::new(Resistor::new(t0.0, t0.1, t0.0, t0.1 + 16, 1000.0)));
+    c.push(Box::new(Ground::new(t0.0, t0.1 + 16, t0.0, t0.1 + 32)));
+    c.push(Box::new(Resistor::new(t1.0, t1.1, t1.0, t1.1 + 16, 1000.0)));
+    c.push(Box::new(Ground::new(t1.0, t1.1 + 16, t1.0, t1.1 + 32)));
+    c.step().unwrap();
+    assert!(
+        (c.element_current(3) - 0.005).abs() < 1e-6,
+        "throw0 I={}",
+        c.element_current(3)
+    );
+    assert!(
+        c.element_current(5).abs() < 1e-8,
+        "throw1 I={}",
+        c.element_current(5)
+    );
+    c.toggle(2);
+    c.step().unwrap();
+    assert!(c.element_current(3).abs() < 1e-8);
+    assert!((c.element_current(5) - 0.005).abs() < 1e-6);
+}
+
+#[test]
+fn zener_shunt_breakdown() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 10 0 0 0.5
+r 0 0 100 0 0 1000
+z 100 100 100 0 0 5.6
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let vz = c.element_volts(2)[1] - c.element_volts(2)[0];
+    assert!(vz > 5.0 && vz < 6.5, "Vz reverse={vz}");
 }

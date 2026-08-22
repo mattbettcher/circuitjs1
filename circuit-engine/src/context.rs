@@ -29,6 +29,41 @@ impl SimContext {
         self.add_rhs_n(n2, i);
     }
 
+    pub fn stamp_matrix(&mut self, i: usize, j: usize, x: f64) {
+        self.add_a_nn(i, j, x);
+    }
+
+    pub fn stamp_right_side(&mut self, n: usize, x: f64) {
+        self.add_rhs_n(n, x);
+    }
+
+    pub fn stamp_vs_node(&mut self, vs: usize, node: usize, x: f64) {
+        self.add_a_vn(vs, node, x);
+    }
+
+    pub fn stamp_node_vs(&mut self, node: usize, vs: usize, x: f64) {
+        self.add_a_nv(node, vs, x);
+    }
+
+    pub fn stamp_right_side_vs(&mut self, vs: usize, x: f64) {
+        self.add_rhs_v(vs, x);
+    }
+
+    /// I from n1→n2 controlled by V(ctrl1)−V(ctrl2), transconductance `gm`.
+    pub fn stamp_vc_current_source(
+        &mut self,
+        n1: usize,
+        n2: usize,
+        ctrl1: usize,
+        ctrl2: usize,
+        gm: f64,
+    ) {
+        self.add_a_nn(n1, ctrl1, gm);
+        self.add_a_nn(n2, ctrl1, -gm);
+        self.add_a_nn(n1, ctrl2, -gm);
+        self.add_a_nn(n2, ctrl2, gm);
+    }
+
     /// Independent voltage source. `v` is `Some` when the value is known at stamp time (DC).
     pub fn stamp_voltage_source(&mut self, n1: usize, n2: usize, vs: usize, v: Option<f64>) {
         self.add_a_vn(vs, n1, -1.0);

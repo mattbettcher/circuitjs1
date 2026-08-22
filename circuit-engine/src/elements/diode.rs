@@ -46,6 +46,14 @@ impl DiodeModel {
         Self::new("default", DEFAULT_IS, 0.0, DEFAULT_N, 0.0)
     }
 
+    pub fn default_zener() -> Self {
+        Self::new("default-zener", DEFAULT_IS, 0.0, DEFAULT_N, 5.6)
+    }
+
+    pub fn default_led() -> Self {
+        Self::new("default-led", 93.2e-12, 0.042, 3.73, 0.0)
+    }
+
     pub fn from_fwdrop(fwdrop: f64, zvoltage: f64) -> Self {
         let emcoef = 2.0;
         let vscale = emcoef * VT;
@@ -67,9 +75,17 @@ impl DiodeModel {
 pub const FLAG_FWDROP: i32 = 1;
 pub const FLAG_MODEL: i32 = 2;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiodeStyle {
+    Junction,
+    Zener,
+    Led,
+}
+
 pub struct Diode {
     pub ports: Ports,
     pub model: DiodeModel,
+    pub style: DiodeStyle,
     pub diode_end_node: usize,
     leakage: f64,
     zvoltage: f64,
@@ -83,10 +99,34 @@ pub struct Diode {
 
 impl Diode {
     pub fn new(x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
-        Self::with_model(x1, y1, x2, y2, 0, DiodeModel::default_model())
+        Self::with_style(x1, y1, x2, y2, 0, DiodeModel::default_model(), DiodeStyle::Junction)
+    }
+
+    pub fn zener(x1: i32, y1: i32, x2: i32, y2: i32, zvoltage: f64) -> Self {
+        Self::with_style(
+            x1,
+            y1,
+            x2,
+            y2,
+            0,
+            DiodeModel::from_fwdrop(0.805904783, zvoltage),
+            DiodeStyle::Zener,
+        )
     }
 
     pub fn with_model(x1: i32, y1: i32, x2: i32, y2: i32, flags: i32, model: DiodeModel) -> Self {
+        Self::with_style(x1, y1, x2, y2, flags, model, DiodeStyle::Junction)
+    }
+
+    pub fn with_style(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        model: DiodeModel,
+        style: DiodeStyle,
+    ) -> Self {
         let mut d = Self {
             ports: Ports::two((x1, y1), (x2, y2), flags),
             diode_end_node: 1,
@@ -99,6 +139,7 @@ impl Diode {
             vzcrit: 0.0,
             lastvoltdiff: 0.0,
             model,
+            style,
         };
         d.setup();
         d
@@ -165,7 +206,11 @@ impl Element for Diode {
         &self.ports.posts
     }
     fn kind(&self) -> ElementKind {
-        ElementKind::Diode
+        match self.style {
+            DiodeStyle::Junction => ElementKind::Diode,
+            DiodeStyle::Zener => ElementKind::Zener,
+            DiodeStyle::Led => ElementKind::Led,
+        }
     }
     fn internal_node_count(&self) -> usize {
         if self.model.series_resistance > 0.0 {

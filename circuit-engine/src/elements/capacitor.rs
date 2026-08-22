@@ -11,6 +11,7 @@ pub struct Capacitor {
     pub cap_node2: usize,
     pub comp_resistance: f64,
     pub cur_source_value: f64,
+    pub polar_max_neg: Option<f64>,
     dc_omit_internal: bool,
 }
 
@@ -25,6 +26,7 @@ impl Capacitor {
             cap_node2: 1,
             comp_resistance: 0.0,
             cur_source_value: 0.0,
+            polar_max_neg: None,
             dc_omit_internal: false,
         }
     }
@@ -49,11 +51,39 @@ impl Capacitor {
             cap_node2: 1,
             comp_resistance: 0.0,
             cur_source_value: 0.0,
+            polar_max_neg: None,
             dc_omit_internal: false,
         };
         if series_resistance > 0.0 {
             c.ports.alloc_nodes(3);
         }
+        c
+    }
+
+    pub fn polar(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        capacitance: f64,
+        voltdiff: f64,
+        initial_voltage: f64,
+        series_resistance: f64,
+        max_negative: f64,
+    ) -> Self {
+        let mut c = Self::with_state(
+            x1,
+            y1,
+            x2,
+            y2,
+            flags,
+            capacitance,
+            voltdiff,
+            initial_voltage,
+            series_resistance,
+        );
+        c.polar_max_neg = Some(max_negative);
         c
     }
 
@@ -68,6 +98,13 @@ impl Element for Capacitor {
     }
     fn kind(&self) -> ElementKind {
         ElementKind::Capacitor
+    }
+    fn tag(&self) -> &'static str {
+        if self.polar_max_neg.is_some() {
+            "polar"
+        } else {
+            ""
+        }
     }
     fn primary_value(&self) -> Option<(f64, &'static str)> {
         Some((self.capacitance, "F"))

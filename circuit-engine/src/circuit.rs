@@ -129,6 +129,18 @@ impl Circuit {
         }
     }
 
+    pub fn toggle(&mut self, i: usize) {
+        if self.elements[i].toggle() {
+            self.analyzed = false;
+            self.stamped = false;
+        }
+    }
+
+    pub fn set_slider(&mut self, i: usize, t: f64) {
+        self.elements[i].set_slider(t);
+        self.stamped = false;
+    }
+
     pub fn reset(&mut self) {
         self.ctx.t = 0.0;
         self.ctx.time_step = self.max_time_step;
@@ -168,6 +180,19 @@ impl Circuit {
                     if let Some(p1) = e.connected_post(post) {
                         let p0 = e.posts()[post];
                         uf.union(p0, p1);
+                    }
+                }
+            }
+        }
+
+        let mut labels: HashMap<String, (i32, i32)> = HashMap::new();
+        for e in &self.elements {
+            if let Some(name) = e.net_name() {
+                if let Some(&p0) = e.posts().first() {
+                    if let Some(&first) = labels.get(name) {
+                        uf.union(first, p0);
+                    } else {
+                        labels.insert(name.to_string(), p0);
                     }
                 }
             }
@@ -371,7 +396,7 @@ impl Circuit {
                         if k == post1 {
                             continue;
                         }
-                        if !e.get_connection(post1, k) {
+                        if !e.get_matrix_connection(post1, k) {
                             continue;
                         }
                         let kn = e.node(k);
