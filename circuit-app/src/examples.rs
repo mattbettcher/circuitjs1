@@ -153,6 +153,35 @@ g 0 16 0 32 0
 183 0 0 64 0 0 0.5 1.66 3.33 5 0
 ",
     },
+    Example {
+        id: "and",
+        name: "AND gate",
+        dump: "\
+g 0 80 0 96 0
+L 32 16 16 16 0 1 false 5 0
+L 32 48 16 48 0 1 false 5 0
+150 32 32 96 32 0 2 0 5
+",
+    },
+    Example {
+        id: "inverter",
+        name: "Inverter",
+        dump: "\
+g 0 32 0 48 0
+L 0 0 16 0 0 1 false 5 0
+I 0 0 64 0 0 0.5 5
+",
+    },
+    Example {
+        id: "dff",
+        name: "D flip-flop",
+        dump: "\
+g 160 80 160 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+155 0 0 64 48 0
+",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Example> {

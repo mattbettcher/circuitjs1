@@ -1,6 +1,6 @@
 use circuit_engine::{Circuit, ElementKind};
 use eframe::egui::{
-    self, Color32, CornerRadius, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2, ecolor::Hsva,
+    self, ecolor::Hsva, Color32, CornerRadius, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2,
 };
 
 use crate::si;
@@ -224,14 +224,39 @@ fn draw_element(
             let (l1, l2) = leads(p1, p2, 32.0 * zoom / 3.0);
             stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
-            zigzag(painter, l1, l2, v0, v1, opts.voltage_range, w, 6.0 * zoom / 3.0);
+            zigzag(
+                painter,
+                l1,
+                l2,
+                v0,
+                v1,
+                opts.voltage_range,
+                w,
+                6.0 * zoom / 3.0,
+            );
         }
         ElementKind::Capacitor => {
             let (l1, l2) = leads(p1, p2, 10.0 * zoom / 3.0);
             stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
-            plate(painter, l1, p2 - p1, v0, opts.voltage_range, w, 12.0 * zoom / 3.0);
-            plate(painter, l2, p2 - p1, v1, opts.voltage_range, w, 12.0 * zoom / 3.0);
+            plate(
+                painter,
+                l1,
+                p2 - p1,
+                v0,
+                opts.voltage_range,
+                w,
+                12.0 * zoom / 3.0,
+            );
+            plate(
+                painter,
+                l2,
+                p2 - p1,
+                v1,
+                opts.voltage_range,
+                w,
+                12.0 * zoom / 3.0,
+            );
         }
         ElementKind::Inductor => {
             let (l1, l2) = leads(p1, p2, 32.0 * zoom / 3.0);
@@ -245,23 +270,21 @@ fn draw_element(
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
             let c = l1.lerp(l2, 0.5);
             let r = l1.distance(l2) * 0.5;
-            painter.circle_stroke(c, r, Stroke::new(w, voltage_color((v0 + v1) * 0.5, opts.voltage_range)));
+            painter.circle_stroke(
+                c,
+                r,
+                Stroke::new(w, voltage_color((v0 + v1) * 0.5, opts.voltage_range)),
+            );
             let dir = (p2 - p1).normalized();
             let plus = c + dir * r * 0.35;
             let minus = c - dir * r * 0.35;
             let tick = dir.rot90() * (r * 0.22);
-            painter.line_segment(
-                [plus - tick, plus + tick],
-                Stroke::new(w, Color32::WHITE),
-            );
+            painter.line_segment([plus - tick, plus + tick], Stroke::new(w, Color32::WHITE));
             painter.line_segment(
                 [plus - dir * r * 0.22, plus + dir * r * 0.22],
                 Stroke::new(w, Color32::WHITE),
             );
-            painter.line_segment(
-                [minus - tick, minus + tick],
-                Stroke::new(w, Color32::WHITE),
-            );
+            painter.line_segment([minus - tick, minus + tick], Stroke::new(w, Color32::WHITE));
         }
         ElementKind::Rail => {
             stroke_grad(painter, p1, p2, v0, v0, opts.voltage_range, w);
@@ -274,8 +297,18 @@ fn draw_element(
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
             let c = l1.lerp(l2, 0.5);
             let r = l1.distance(l2) * 0.5;
-            painter.circle_stroke(c, r, Stroke::new(w, voltage_color((v0 + v1) * 0.5, opts.voltage_range)));
-            arrow(painter, l1.lerp(l2, 0.22), l1.lerp(l2, 0.78), Color32::WHITE, w);
+            painter.circle_stroke(
+                c,
+                r,
+                Stroke::new(w, voltage_color((v0 + v1) * 0.5, opts.voltage_range)),
+            );
+            arrow(
+                painter,
+                l1.lerp(l2, 0.22),
+                l1.lerp(l2, 0.78),
+                Color32::WHITE,
+                w,
+            );
         }
         ElementKind::Diode | ElementKind::Led => {
             let (l1, l2) = leads(p1, p2, 16.0 * zoom / 3.0);
@@ -331,13 +364,26 @@ fn draw_element(
         }
         ElementKind::LabeledNode => {
             stroke_grad(painter, p1, p2, v0, v0, opts.voltage_range, w);
-            painter.circle_stroke(p2, 8.0 * zoom / 3.0, Stroke::new(w, voltage_color(v0, opts.voltage_range)));
+            painter.circle_stroke(
+                p2,
+                8.0 * zoom / 3.0,
+                Stroke::new(w, voltage_color(v0, opts.voltage_range)),
+            );
         }
         ElementKind::Pot => {
             let (l1, l2) = leads(p1, p2, 32.0 * zoom / 3.0);
             stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
-            zigzag(painter, l1, l2, v0, v1, opts.voltage_range, w, 6.0 * zoom / 3.0);
+            zigzag(
+                painter,
+                l1,
+                l2,
+                v0,
+                v1,
+                opts.voltage_range,
+                w,
+                6.0 * zoom / 3.0,
+            );
             if let Some(&wiper) = pts.get(2) {
                 let v2 = volts.get(2).copied().unwrap_or(v0);
                 let mid = p1.lerp(p2, 0.5);
@@ -346,7 +392,11 @@ fn draw_element(
         }
         ElementKind::Probe | ElementKind::Output | ElementKind::TestPoint => {
             stroke_grad(painter, p1, p2, v0, v1, opts.voltage_range, w);
-            painter.circle_stroke(p2, 6.0 * zoom / 3.0, Stroke::new(w, voltage_color(v0, opts.voltage_range)));
+            painter.circle_stroke(
+                p2,
+                6.0 * zoom / 3.0,
+                Stroke::new(w, voltage_color(v0, opts.voltage_range)),
+            );
         }
         ElementKind::Ammeter => {
             stroke_grad(painter, p1, p2, v0, v1, opts.voltage_range, w);
@@ -391,24 +441,59 @@ fn draw_element(
                 Stroke::new(w + 0.6, Color32::from_gray(210)),
             );
         }
-        ElementKind::Ldr
-        | ElementKind::Thermistor
-        | ElementKind::Fuse
-        | ElementKind::Memristor => {
+        ElementKind::Ldr | ElementKind::Thermistor | ElementKind::Fuse | ElementKind::Memristor => {
             let (l1, l2) = leads(p1, p2, 32.0 * zoom / 3.0);
             stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
-            zigzag(painter, l1, l2, v0, v1, opts.voltage_range, w, 6.0 * zoom / 3.0);
+            zigzag(
+                painter,
+                l1,
+                l2,
+                v0,
+                v1,
+                opts.voltage_range,
+                w,
+                6.0 * zoom / 3.0,
+            );
         }
         ElementKind::SparkGap | ElementKind::Varactor | ElementKind::Crystal => {
             let (l1, l2) = leads(p1, p2, 10.0 * zoom / 3.0);
             stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
             stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
-            plate(painter, l1, p2 - p1, v0, opts.voltage_range, w, 12.0 * zoom / 3.0);
-            plate(painter, l2, p2 - p1, v1, opts.voltage_range, w, 12.0 * zoom / 3.0);
+            plate(
+                painter,
+                l1,
+                p2 - p1,
+                v0,
+                opts.voltage_range,
+                w,
+                12.0 * zoom / 3.0,
+            );
+            plate(
+                painter,
+                l2,
+                p2 - p1,
+                v1,
+                opts.voltage_range,
+                w,
+                12.0 * zoom / 3.0,
+            );
         }
-        ElementKind::Schmitt | ElementKind::InvertingSchmitt => {
+        ElementKind::Schmitt | ElementKind::InvertingSchmitt | ElementKind::Inverter => {
             stroke_grad(painter, p1, p2, v0, v1, opts.voltage_range, w);
+        }
+        ElementKind::LogicInput => {
+            stroke_grad(painter, p1, p2, v0, v0, opts.voltage_range, w);
+            painter.circle_filled(p2, 7.0 * zoom / 3.0, voltage_color(v0, opts.voltage_range));
+            painter.circle_stroke(p2, 7.0 * zoom / 3.0, Stroke::new(w, Color32::WHITE));
+        }
+        ElementKind::LogicOutput => {
+            stroke_grad(painter, p1, p2, v0, v0, opts.voltage_range, w);
+            painter.circle_stroke(
+                p2,
+                7.0 * zoom / 3.0,
+                Stroke::new(w, voltage_color(v0, opts.voltage_range)),
+            );
         }
         ElementKind::Sweep
         | ElementKind::AmSource
@@ -426,7 +511,14 @@ fn draw_element(
         | ElementKind::Relay
         | ElementKind::Ccvs
         | ElementKind::Cccs
-        | ElementKind::Ccii => {
+        | ElementKind::Ccii
+        | ElementKind::AndGate
+        | ElementKind::NandGate
+        | ElementKind::OrGate
+        | ElementKind::NorGate
+        | ElementKind::XorGate
+        | ElementKind::XnorGate
+        | ElementKind::DFlipFlop => {
             multi_star(painter, pts, volts, opts.voltage_range, w);
         }
     }
@@ -463,13 +555,7 @@ fn draw_element(
     }
 }
 
-fn multi_star(
-    painter: &egui::Painter,
-    pts: &[Pos2],
-    volts: &[f64],
-    range: f32,
-    w: f32,
-) {
+fn multi_star(painter: &egui::Painter, pts: &[Pos2], volts: &[f64], range: f32, w: f32) {
     if pts.is_empty() {
         return;
     }
@@ -496,15 +582,7 @@ fn leads(p1: Pos2, p2: Pos2, body: f32) -> (Pos2, Pos2) {
     (p1.lerp(p2, 0.5 - t), p1.lerp(p2, 0.5 + t))
 }
 
-fn stroke_grad(
-    painter: &egui::Painter,
-    a: Pos2,
-    b: Pos2,
-    va: f64,
-    vb: f64,
-    range: f32,
-    w: f32,
-) {
+fn stroke_grad(painter: &egui::Painter, a: Pos2, b: Pos2, va: f64, vb: f64, range: f32, w: f32) {
     let n = 8;
     for i in 0..n {
         let t0 = i as f32 / n as f32;
@@ -544,15 +622,7 @@ fn zigzag(
     }
 }
 
-fn plate(
-    painter: &egui::Painter,
-    center: Pos2,
-    along: Vec2,
-    v: f64,
-    range: f32,
-    w: f32,
-    hs: f32,
-) {
+fn plate(painter: &egui::Painter, center: Pos2, along: Vec2, v: f64, range: f32, w: f32, hs: f32) {
     let n = along.normalized().rot90() * hs;
     painter.line_segment(
         [center - n, center + n],
@@ -560,15 +630,7 @@ fn plate(
     );
 }
 
-fn coils(
-    painter: &egui::Painter,
-    a: Pos2,
-    b: Pos2,
-    va: f64,
-    vb: f64,
-    range: f32,
-    w: f32,
-) {
+fn coils(painter: &egui::Painter, a: Pos2, b: Pos2, va: f64, vb: f64, range: f32, w: f32) {
     let dir = (b - a).normalized();
     let n = dir.rot90();
     let len = a.distance(b);
@@ -587,15 +649,7 @@ fn coils(
     }
 }
 
-fn diode_body(
-    painter: &egui::Painter,
-    a: Pos2,
-    b: Pos2,
-    va: f64,
-    vb: f64,
-    range: f32,
-    w: f32,
-) {
+fn diode_body(painter: &egui::Painter, a: Pos2, b: Pos2, va: f64, vb: f64, range: f32, w: f32) {
     let dir = (b - a).normalized();
     let n = dir.rot90() * a.distance(b) * 0.55;
     let tri = vec![a + n, a - n, b];
@@ -649,7 +703,11 @@ pub fn show_scope(ui: &mut Ui, samples: &[(f64, f64)], ylabel: &str) {
         Sense::hover(),
     );
     let rect = resp.rect.shrink(8.0);
-    painter.rect_filled(resp.rect, CornerRadius::same(4), Color32::from_rgb(12, 14, 18));
+    painter.rect_filled(
+        resp.rect,
+        CornerRadius::same(4),
+        Color32::from_rgb(12, 14, 18),
+    );
     if samples.len() < 2 {
         painter.text(
             rect.center(),

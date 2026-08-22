@@ -99,7 +99,15 @@ pub struct Diode {
 
 impl Diode {
     pub fn new(x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
-        Self::with_style(x1, y1, x2, y2, 0, DiodeModel::default_model(), DiodeStyle::Junction)
+        Self::with_style(
+            x1,
+            y1,
+            x2,
+            y2,
+            0,
+            DiodeModel::default_model(),
+            DiodeStyle::Junction,
+        )
     }
 
     pub fn zener(x1: i32, y1: i32, x2: i32, y2: i32, zvoltage: f64) -> Self {

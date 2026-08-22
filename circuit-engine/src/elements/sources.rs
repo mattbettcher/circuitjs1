@@ -270,7 +270,8 @@ impl Element for AnalogSourceElm {
     }
     fn step_finished(&mut self, ctx: &mut SimContext) {
         if self.kind == AnalogSourceKind::Antenna && !ctx.dc_analysis {
-            self.fmphase += 2.0 * PI * (2200.0 + (2.0 * PI * ctx.t * 13.0).sin() * 100.0) * ctx.time_step;
+            self.fmphase +=
+                2.0 * PI * (2200.0 + (2.0 * PI * ctx.t * 13.0).sin() * 100.0) * ctx.time_step;
         }
     }
 }

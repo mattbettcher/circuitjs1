@@ -50,6 +50,16 @@ pub enum ElementKind {
     AmSource,
     FmSource,
     Antenna,
+    LogicInput,
+    LogicOutput,
+    Inverter,
+    AndGate,
+    NandGate,
+    OrGate,
+    NorGate,
+    XorGate,
+    XnorGate,
+    DFlipFlop,
 }
 
 impl ElementKind {
@@ -102,6 +112,16 @@ impl ElementKind {
             Self::AmSource => "AM source",
             Self::FmSource => "FM source",
             Self::Antenna => "antenna",
+            Self::LogicInput => "logic input",
+            Self::LogicOutput => "logic output",
+            Self::Inverter => "inverter",
+            Self::AndGate => "AND gate",
+            Self::NandGate => "NAND gate",
+            Self::OrGate => "OR gate",
+            Self::NorGate => "NOR gate",
+            Self::XorGate => "XOR gate",
+            Self::XnorGate => "XNOR gate",
+            Self::DFlipFlop => "D flip-flop",
         }
     }
 }

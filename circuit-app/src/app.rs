@@ -145,11 +145,7 @@ impl CircuitApp {
 
             let mut id = self.example_id.clone();
             ComboBox::from_id_salt("example")
-                .selected_text(
-                    examples::by_id(&id)
-                        .map(|e| e.name)
-                        .unwrap_or("Custom"),
-                )
+                .selected_text(examples::by_id(&id).map(|e| e.name).unwrap_or("Custom"))
                 .show_ui(ui, |ui| {
                     for ex in EXAMPLES {
                         ui.selectable_value(&mut id, ex.id.to_string(), ex.name);
@@ -344,7 +340,10 @@ impl eframe::App for CircuitApp {
                 {
                     let kind = self.circuit.elements[hit].kind();
                     if self.selected == Some(hit)
-                        && matches!(kind, ElementKind::Switch | ElementKind::SwitchSpdt)
+                        && matches!(
+                            kind,
+                            ElementKind::Switch | ElementKind::SwitchSpdt | ElementKind::LogicInput
+                        )
                     {
                         self.circuit.toggle(hit);
                     }

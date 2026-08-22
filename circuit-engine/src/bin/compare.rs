@@ -23,10 +23,7 @@ fn json_f64(x: f64) -> String {
 fn json_vec(v: &[f64]) -> String {
     format!(
         "[{}]",
-        v.iter()
-            .map(|x| json_f64(*x))
-            .collect::<Vec<_>>()
-            .join(",")
+        v.iter().map(|x| json_f64(*x)).collect::<Vec<_>>().join(",")
     )
 }
 
@@ -121,7 +118,11 @@ fn divider() -> Circuit {
     c
 }
 
-fn sample_every(c: &mut Circuit, steps: usize, stride: usize) -> (Vec<f64>, Vec<circuit_engine::Snapshot>) {
+fn sample_every(
+    c: &mut Circuit,
+    steps: usize,
+    stride: usize,
+) -> (Vec<f64>, Vec<circuit_engine::Snapshot>) {
     let mut t = Vec::new();
     let mut snaps = Vec::new();
     for i in 0..steps {
@@ -148,11 +149,7 @@ fn main() {
     cases.push(lu_case(
         "lu_solves_identity",
         "LU: identity",
-        mat(&[
-            &[1.0, 0.0, 0.0],
-            &[0.0, 1.0, 0.0],
-            &[0.0, 0.0, 1.0],
-        ]),
+        mat(&[&[1.0, 0.0, 0.0], &[0.0, 1.0, 0.0], &[0.0, 0.0, 1.0]]),
         vec![4.0, 5.0, 6.0],
         &["x0", "x1", "x2"],
     ));
@@ -161,11 +158,7 @@ fn main() {
         cases.push(lu_case(
             "lu_voltage_divider_mna",
             "LU: voltage-divider MNA",
-            mat(&[
-                &[g, -g, -1.0],
-                &[-g, 2.0 * g, 0.0],
-                &[1.0, 0.0, 0.0],
-            ]),
+            mat(&[&[g, -g, -1.0], &[-g, 2.0 * g, 0.0], &[1.0, 0.0, 0.0]]),
             vec![0.0, 0.0, 10.0],
             &["Vsource", "Vmid", "Ivs"],
         ));
@@ -597,7 +590,11 @@ o 2 64 0 4099 5 0.05 0 2 2 3
     let out = format!(
         "{{\"source\":\"circuit-engine compare\",\"caseCount\":{},\"cases\":[{}]}}",
         cases.len(),
-        cases.iter().map(|c| c.to_json()).collect::<Vec<_>>().join(",")
+        cases
+            .iter()
+            .map(|c| c.to_json())
+            .collect::<Vec<_>>()
+            .join(",")
     );
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("compare");
     fs::create_dir_all(&dir).unwrap();

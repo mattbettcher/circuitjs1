@@ -1,6 +1,6 @@
 use crate::context::SimContext;
 use crate::element::{Element, ElementKind};
-use crate::geom::{interp_off, interp2};
+use crate::geom::{interp2, interp_off};
 use crate::ports::Ports;
 
 const FLAG_CENTER_OFF: i32 = 1;
@@ -150,8 +150,7 @@ impl Element for Switch2Elm {
             self.ports.current = 0.0;
         } else if self.resistance > 0.0 {
             let t = (self.position + 1) as usize;
-            self.ports.current =
-                (self.ports.volts[0] - self.ports.volts[t]) / self.resistance;
+            self.ports.current = (self.ports.volts[0] - self.ports.volts[t]) / self.resistance;
         }
     }
 }

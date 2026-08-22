@@ -137,6 +137,59 @@ pub fn analog_switch2_posts(p1: (i32, i32), p2: (i32, i32)) -> Vec<(i32, i32)> {
     vec![p1, t0, t1, interp_off(p1, p2, 0.5, 16.0)]
 }
 
+pub const SIDE_N: i32 = 0;
+pub const SIDE_S: i32 = 1;
+pub const SIDE_W: i32 = 2;
+pub const SIDE_E: i32 = 3;
+pub const FLAG_SMALL: i32 = 1;
+
+/// GateElm input posts along the perpendicular at `p1`, output at `p2`.
+pub fn gate_posts(
+    p1: (i32, i32),
+    p2: (i32, i32),
+    flags: i32,
+    input_count: usize,
+) -> Vec<(i32, i32)> {
+    let n = input_count.max(1);
+    let gsize = if (flags & FLAG_SMALL) != 0 { 1 } else { 2 };
+    let hs = 8 * gsize;
+    let mut posts = Vec::with_capacity(n + 1);
+    let mut i0 = -(n as i32) / 2;
+    for _ in 0..n {
+        if i0 == 0 && n % 2 == 0 {
+            i0 += 1;
+        }
+        posts.push(interp_off(p1, p2, 0.0, (hs * i0) as f64));
+        i0 += 1;
+    }
+    posts.push(p2);
+    posts
+}
+
+/// Unflipped ChipElm pin location (`Pin.setPoint` without FLAG_FLIP_*).
+pub fn chip_pin_post(
+    p1: (i32, i32),
+    flags: i32,
+    size_x: i32,
+    size_y: i32,
+    pin_pos: i32,
+    side: i32,
+) -> (i32, i32) {
+    let csize = if (flags & FLAG_SMALL) != 0 { 1 } else { 2 };
+    let cspc2 = 16 * csize;
+    let x0 = p1.0 + cspc2;
+    let y0 = p1.1;
+    let xs = size_x * cspc2;
+    let ys = size_y * cspc2;
+    match side {
+        SIDE_N => (x0 + cspc2 * pin_pos, y0 - cspc2),
+        SIDE_S => (x0 + cspc2 * pin_pos, y0 + (ys - cspc2) + cspc2),
+        SIDE_W => (x0 - cspc2, y0 + cspc2 * pin_pos),
+        SIDE_E => (x0 + (xs - cspc2) + cspc2, y0 + cspc2 * pin_pos),
+        _ => p1,
+    }
+}
+
 /// CCII posts: X and Y on the west side, Z on the east (ChipElm sizeX=2, sizeY=3).
 pub fn cc2_posts(p1: (i32, i32), flags: i32) -> Vec<(i32, i32)> {
     let csize = if (flags & 1) != 0 { 1 } else { 2 };

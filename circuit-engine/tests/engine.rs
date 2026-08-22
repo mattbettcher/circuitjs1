@@ -287,7 +287,13 @@ fn opamp_follower() {
     let inn = op.posts()[0];
     let inp = op.posts()[1];
     let out = op.posts()[2];
-    c.push(Box::new(VoltageElm::dc(inp.0, inp.1 + 32, inp.0, inp.1, 2.0)));
+    c.push(Box::new(VoltageElm::dc(
+        inp.0,
+        inp.1 + 32,
+        inp.0,
+        inp.1,
+        2.0,
+    )));
     c.push(Box::new(Ground::new(inp.0, inp.1 + 32, inp.0, inp.1 + 48)));
     c.push(Box::new(op));
     c.push(Box::new(Wire::new(out.0, out.1, inn.0, inn.1)));
@@ -490,6 +496,78 @@ g 144 48 144 64 0
     c.step().unwrap();
     let vout = c.element_volts(2)[2] - c.element_volts(2)[3];
     assert!((vout - 1.0).abs() < 0.02, "Vout={vout}");
+}
+
+#[test]
+fn inverter_inverts_logic_input() {
+    let mut c = parse_dump(
+        "\
+g 0 32 0 48 0
+L 0 0 16 0 0 1 false 5 0
+I 0 0 64 0 0 0.5 5
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(2);
+    assert!((v[0] - 5.0).abs() < 0.02, "Vin={}", v[0]);
+    assert!(v[1].abs() < 0.02, "Vout={}", v[1]);
+}
+
+#[test]
+fn and_gate_both_high() {
+    let mut c = parse_dump(
+        "\
+g 0 80 0 96 0
+L 32 16 16 16 0 1 false 5 0
+L 32 48 16 48 0 1 false 5 0
+150 32 32 96 32 0 2 0 5
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!((v[2] - 5.0).abs() < 0.02, "Vout={} volts={v:?}", v[2]);
+}
+
+#[test]
+fn nand_gate_one_low() {
+    let mut c = parse_dump(
+        "\
+g 0 80 0 96 0
+L 32 16 16 16 0 1 false 5 0
+L 32 48 16 48 0 0 false 5 0
+151 32 32 96 32 0 2 0 5
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!((v[2] - 5.0).abs() < 0.02, "Vout={} volts={v:?}", v[2]);
+}
+
+#[test]
+fn d_flip_flop_rising_edge() {
+    let mut c = parse_dump(
+        "\
+g 160 80 160 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+155 0 0 64 48 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let q0 = c.element_volts(3)[1];
+    assert!(q0.abs() < 0.5, "Q before clock={q0}");
+    c.toggle(2);
+    c.step().unwrap();
+    c.step().unwrap();
+    let q1 = c.element_volts(3)[1];
+    assert!((q1 - 5.0).abs() < 0.02, "Q after rising edge={q1}");
 }
 
 #[test]

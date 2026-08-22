@@ -155,7 +155,8 @@ impl Element for TransistorElm {
         let pnp = self.pnp as f64;
         let mut vbc = pnp * (self.ports.volts[0] - self.ports.volts[1]);
         let mut vbe = pnp * (self.ports.volts[0] - self.ports.volts[2]);
-        let not_converged = (vbc - self.last_vbc).abs() > 0.01 || (vbe - self.last_vbe).abs() > 0.01;
+        let not_converged =
+            (vbc - self.last_vbc).abs() > 0.01 || (vbe - self.last_vbe).abs() > 0.01;
         if not_converged {
             ctx.converged = false;
             self.local_sub_iters += 1;

@@ -212,10 +212,7 @@ impl Element for TappedTransformerElm {
         Some((self.inductance, "H"))
     }
     fn get_connection(&self, n1: usize, n2: usize) -> bool {
-        matches!(
-            (n1.min(n2), n1.max(n2)),
-            (0, 1) | (2, 3) | (3, 4) | (2, 4)
-        )
+        matches!((n1.min(n2), n1.max(n2)), (0, 1) | (2, 3) | (3, 4) | (2, 4))
     }
     fn get_matrix_connection(&self, _n1: usize, _n2: usize) -> bool {
         true

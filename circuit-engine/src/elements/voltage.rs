@@ -95,7 +95,17 @@ impl VoltageElm {
         duty_cycle: f64,
     ) -> Self {
         let mut v = Self::from_dump(
-            x1, y1, x2, y2, flags, waveform, frequency, max_voltage, bias, phase_shift, duty_cycle,
+            x1,
+            y1,
+            x2,
+            y2,
+            flags,
+            waveform,
+            frequency,
+            max_voltage,
+            bias,
+            phase_shift,
+            duty_cycle,
         );
         v.is_rail = true;
         v
@@ -236,7 +246,11 @@ impl Element for VoltageElm {
         };
         let n1 = if self.is_rail { 0 } else { self.ports.nodes[0] };
         let n2 = self.ports.nodes[0];
-        let n2 = if self.is_rail { n2 } else { self.ports.nodes[1] };
+        let n2 = if self.is_rail {
+            n2
+        } else {
+            self.ports.nodes[1]
+        };
         ctx.stamp_voltage_source(n1, n2, self.vs, v);
     }
     fn do_step(&mut self, ctx: &mut SimContext) {

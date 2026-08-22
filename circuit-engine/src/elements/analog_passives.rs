@@ -290,7 +290,8 @@ impl Element for MemristorElm {
         ctx.stamp_resistor(self.ports.nodes[0], self.ports.nodes[1], self.resistance);
     }
     fn calculate_current(&mut self) {
-        self.ports.current = (self.ports.volts[0] - self.ports.volts[1]) / self.resistance.max(1e-12);
+        self.ports.current =
+            (self.ports.volts[0] - self.ports.volts[1]) / self.resistance.max(1e-12);
     }
 }
 

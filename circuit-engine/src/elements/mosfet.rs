@@ -31,15 +31,7 @@ impl MosfetElm {
         Self::from_dump(x1, y1, x2, y2, FLAG_PNP, 1.5, 0.02)
     }
 
-    pub fn from_dump(
-        x1: i32,
-        y1: i32,
-        x2: i32,
-        y2: i32,
-        flags: i32,
-        vt: f64,
-        beta: f64,
-    ) -> Self {
+    pub fn from_dump(x1: i32, y1: i32, x2: i32, y2: i32, flags: i32, vt: f64, beta: f64) -> Self {
         let pnp = if (flags & FLAG_PNP) != 0 { -1 } else { 1 };
         let mut hs2 = 16 * dsign((x1, y1), (x2, y2));
         if (flags & FLAG_FLIP) != 0 {
@@ -179,9 +171,8 @@ impl Element for MosfetElm {
             ids = vds_p * gds;
         } else if vds_p < vgs_p - self.vt {
             let lam = self.lambda;
-            ids = self.beta
-                * ((vgs_p - self.vt) * vds_p - vds_p * vds_p * 0.5)
-                * (1.0 + lam * vds_p);
+            ids =
+                self.beta * ((vgs_p - self.vt) * vds_p - vds_p * vds_p * 0.5) * (1.0 + lam * vds_p);
             gm = self.beta * vds_p * (1.0 + lam * vds_p);
             gds = self.beta
                 * ((vgs_p - vds_p - self.vt) * (1.0 + lam * vds_p)
