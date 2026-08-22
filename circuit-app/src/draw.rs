@@ -525,7 +525,12 @@ fn draw_element(
         | ElementKind::FullAdder
         | ElementKind::Latch
         | ElementKind::Multiplexer
-        | ElementKind::Demultiplexer => {
+        | ElementKind::Demultiplexer
+        | ElementKind::Counter
+        | ElementKind::Counter2
+        | ElementKind::RingCounter
+        | ElementKind::SipoShift
+        | ElementKind::PisoShift => {
             multi_star(painter, pts, volts, opts.voltage_range, w);
         }
     }

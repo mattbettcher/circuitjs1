@@ -67,6 +67,11 @@ pub enum ElementKind {
     Latch,
     Multiplexer,
     Demultiplexer,
+    Counter,
+    Counter2,
+    RingCounter,
+    SipoShift,
+    PisoShift,
 }
 
 impl ElementKind {
@@ -136,6 +141,11 @@ impl ElementKind {
             Self::Latch => "latch",
             Self::Multiplexer => "multiplexer",
             Self::Demultiplexer => "demultiplexer",
+            Self::Counter => "counter",
+            Self::Counter2 => "counter with load",
+            Self::RingCounter => "ring counter",
+            Self::SipoShift => "SIPO shift register",
+            Self::PisoShift => "PISO shift register",
         }
     }
 }

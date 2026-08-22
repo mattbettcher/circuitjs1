@@ -203,6 +203,26 @@ L 64 96 64 112 0 0 false 5 0
 184 0 0 64 48 0 1
 ",
     },
+    Example {
+        id: "counter",
+        name: "4-bit counter",
+        dump: "\
+g 160 128 160 144 0
+L 0 0 16 0 0 0 false 5 0
+L 0 96 16 96 0 1 false 5 0
+164 0 0 64 48 0 4 0 0 0 0 true 0
+",
+    },
+    Example {
+        id: "sipo",
+        name: "4-bit SIPO",
+        dump: "\
+g 160 96 160 112 0
+L 0 32 16 32 0 1 false 5 0
+L 0 64 16 64 0 0 false 5 0
+189 0 0 64 48 0 4
+",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Example> {

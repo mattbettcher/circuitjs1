@@ -484,6 +484,67 @@ pub fn parse_dump(text: &str) -> Result<Circuit> {
                 let sel = tok.next().and_then(|s| s.parse().ok()).unwrap_or(2);
                 Box::new(ChipElm::demultiplexer(x1, y1, x2, y2, flags, sel, hv))
             }
+            164 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let rest: Vec<&str> = tok.collect();
+                let (state, mut i) = take_state_volts(&rest, bits);
+                let invert_reset = match rest.get(i) {
+                    Some(s) if s.eq_ignore_ascii_case("true") => {
+                        i += 1;
+                        true
+                    }
+                    Some(s) if s.eq_ignore_ascii_case("false") => {
+                        i += 1;
+                        false
+                    }
+                    _ => true,
+                };
+                let modulus = rest.get(i).and_then(|s| s.parse().ok()).unwrap_or(0);
+                Box::new(ChipElm::counter(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    bits,
+                    hv,
+                    &state,
+                    invert_reset,
+                    modulus,
+                ))
+            }
+            421 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let rest: Vec<&str> = tok.collect();
+                let (state, i) = take_state_volts(&rest, bits);
+                let modulus = rest.get(i).and_then(|s| s.parse().ok()).unwrap_or(0);
+                Box::new(ChipElm::counter2(
+                    x1, y1, x2, y2, flags, bits, hv, &state, modulus,
+                ))
+            }
+            163 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(10);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let rest: Vec<&str> = tok.collect();
+                let (state, _) = take_state_volts(&rest, bits);
+                Box::new(ChipElm::ring_counter(
+                    x1, y1, x2, y2, flags, bits, hv, &state,
+                ))
+            }
+            189 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(8);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let q_bits = read_packed_bits(&mut tok, bits);
+                Box::new(ChipElm::sipo(x1, y1, x2, y2, flags, bits, hv, &q_bits))
+            }
+            186 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(8);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let data = read_packed_bits(&mut tok, bits);
+                Box::new(ChipElm::piso(x1, y1, x2, y2, flags, bits, hv, data))
+            }
             other => {
                 return Err(SimError::Parse(format!(
                     "unsupported element dump type {other}"
@@ -605,4 +666,44 @@ fn parse_f<'a>(tok: &mut impl Iterator<Item = &'a str>, what: &str) -> Result<f6
     tok.next()
         .and_then(|s| s.parse().ok())
         .ok_or_else(|| SimError::Parse(format!("missing {what}")))
+}
+
+/// ChipElm state-pin voltages; stop before a boolean extra token.
+fn take_state_volts(rest: &[&str], n: usize) -> (Vec<f64>, usize) {
+    let mut state = Vec::new();
+    let mut i = 0;
+    while i < rest.len() && state.len() < n {
+        if rest[i].eq_ignore_ascii_case("true") || rest[i].eq_ignore_ascii_case("false") {
+            break;
+        }
+        match rest[i].parse::<f64>() {
+            Ok(v) => {
+                state.push(v);
+                i += 1;
+            }
+            Err(_) => break,
+        }
+    }
+    (state, i)
+}
+
+/// Packed little-endian ints, matching `ChipElm.readBits`.
+fn read_packed_bits<'a>(tok: &mut impl Iterator<Item = &'a str>, n: usize) -> Vec<bool> {
+    let mut out = vec![false; n];
+    let mut integer = 0i32;
+    let mut bit_index = i32::MAX;
+    for i in 0..n {
+        if bit_index >= 32 {
+            match tok.next() {
+                Some(s) => {
+                    integer = s.parse().unwrap_or(0);
+                    bit_index = 0;
+                }
+                None => break,
+            }
+        }
+        out[i] = (integer & (1 << bit_index)) != 0;
+        bit_index += 1;
+    }
+    out
 }

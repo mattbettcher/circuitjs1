@@ -1,6 +1,6 @@
 use crate::context::SimContext;
 use crate::element::{Element, ElementKind};
-use crate::geom::{chip_pin_post, SIDE_E, SIDE_S, SIDE_W};
+use crate::geom::{chip_pin_post, SIDE_E, SIDE_N, SIDE_S, SIDE_W};
 use crate::ports::Ports;
 
 const FLAG_CUSTOM_VOLTAGE: i32 = 1 << 13;
@@ -17,6 +17,11 @@ const LATCH_SET: i32 = 16;
 const MUX_INVERT_OUT: i32 = 1 << 1;
 const MUX_STROBE: i32 = 1 << 2;
 const DEMUX_INVERT: i32 = 1 << 4;
+const CTR_UP_DOWN: i32 = 4;
+const CTR_NEG_EDGE: i32 = 8;
+const RING_CLOCK_INHIBIT: i32 = 2;
+const RING_RESET_HIGH: i32 = 4;
+const PISO_NEW: i32 = 2;
 const ADDER_BITS: i32 = 2;
 
 #[derive(Clone, Debug)]
@@ -86,6 +91,37 @@ enum ChipLogic {
         select_pin: usize,
         output_pin: usize,
         output_count: usize,
+    },
+    Counter {
+        bits: usize,
+        invert_reset: bool,
+        modulus: i32,
+    },
+    Counter2 {
+        bits: usize,
+        modulus: i32,
+        clk: usize,
+        clr: usize,
+        enp: usize,
+        ent: usize,
+        rco: usize,
+        load: usize,
+        carry: bool,
+    },
+    RingCounter {
+        bits: usize,
+        clock_inhibit: Option<usize>,
+    },
+    Sipo {
+        bits: usize,
+        clock_state: bool,
+    },
+    Piso {
+        data: Vec<bool>,
+        data_index: i32,
+        clock_state: bool,
+        load_state: bool,
+        data_pin_index: usize,
     },
 }
 
@@ -500,6 +536,238 @@ impl ChipElm {
         )
     }
 
+    pub fn counter(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        bits: usize,
+        high_voltage: f64,
+        state_volts: &[f64],
+        invert_reset: bool,
+        modulus: i32,
+    ) -> Self {
+        let _ = (x2, y2);
+        let bits = bits.max(1);
+        let has_ud = (flags & CTR_UP_DOWN) != 0;
+        let n = bits + 2 + has_ud as usize;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        pins[0] = ChipPin::inn(0, SIDE_W);
+        pins[1] = ChipPin::inn(bits as i32 - 1, SIDE_W);
+        bit_pins_rev(&mut pins, bits, 0, SIDE_E, 2, true, true);
+        if has_ud {
+            pins[bits + 2] = ChipPin::inn(bits as i32 - 2, SIDE_W);
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            2,
+            bits as i32,
+            pins,
+            high_voltage,
+            state_volts,
+            ElementKind::Counter,
+            ChipLogic::Counter {
+                bits,
+                invert_reset,
+                modulus,
+            },
+            false,
+        )
+    }
+
+    pub fn counter2(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        bits: usize,
+        high_voltage: f64,
+        state_volts: &[f64],
+        modulus: i32,
+    ) -> Self {
+        let _ = (x2, y2);
+        let bits = bits.max(2);
+        let bits_y = bits as i32;
+        let n = bits * 2 + 6;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        bit_pins_rev(&mut pins, bits, 1, SIDE_E, 0, true, true);
+        bit_pins_rev(&mut pins, bits, 1, SIDE_W, bits, false, false);
+        let p = bits * 2;
+        pins[p] = ChipPin::inn(0, SIDE_W);
+        pins[p + 1] = ChipPin::inn(bits_y + 1, SIDE_W);
+        pins[p + 2] = ChipPin::inn(bits_y + 2, SIDE_W);
+        pins[p + 3] = ChipPin::out(0, SIDE_E, false);
+        pins[p + 4] = ChipPin::inn(bits_y + 1, SIDE_E);
+        pins[p + 5] = ChipPin::inn(bits_y + 2, SIDE_E);
+        Self::assemble(
+            (x1, y1),
+            flags,
+            2,
+            bits_y + 3,
+            pins,
+            high_voltage,
+            state_volts,
+            ElementKind::Counter2,
+            ChipLogic::Counter2 {
+                bits,
+                modulus,
+                clk: p,
+                clr: p + 1,
+                enp: p + 2,
+                rco: p + 3,
+                load: p + 4,
+                ent: p + 5,
+                carry: false,
+            },
+            false,
+        )
+    }
+
+    pub fn ring_counter(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        bits: usize,
+        high_voltage: f64,
+        state_volts: &[f64],
+    ) -> Self {
+        let _ = (x2, y2);
+        let bits = bits.max(2);
+        let inhibit = (flags & RING_CLOCK_INHIBIT) != 0 && bits >= 3;
+        let n = bits + 2 + inhibit as usize;
+        let size_x = bits.max(2) as i32;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        pins[0] = ChipPin::inn(1, SIDE_W);
+        pins[1] = ChipPin::inn(size_x - 1, SIDE_S);
+        for i in 0..bits {
+            pins[i + 2] = ChipPin::out(i as i32, SIDE_N, true);
+        }
+        let clock_inhibit = if inhibit {
+            pins[n - 1] = ChipPin::inn(1, SIDE_S);
+            Some(n - 1)
+        } else {
+            None
+        };
+        Self::assemble(
+            (x1, y1),
+            flags,
+            size_x,
+            2,
+            pins,
+            high_voltage,
+            state_volts,
+            ElementKind::RingCounter,
+            ChipLogic::RingCounter {
+                bits,
+                clock_inhibit,
+            },
+            true,
+        )
+    }
+
+    pub fn sipo(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        bits: usize,
+        high_voltage: f64,
+        q_bits: &[bool],
+    ) -> Self {
+        let _ = (x2, y2);
+        let bits = bits.max(1);
+        let n = 2 + bits;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        pins[0] = ChipPin::inn(1, SIDE_W);
+        pins[1] = ChipPin::inn(2, SIDE_W);
+        for i in 0..bits {
+            pins[2 + i] = ChipPin::out(i as i32 + 1, SIDE_N, false);
+            if q_bits.get(i).copied().unwrap_or(false) {
+                pins[2 + i].value = true;
+            }
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            bits as i32 + 1,
+            3,
+            pins,
+            high_voltage,
+            &[],
+            ElementKind::SipoShift,
+            ChipLogic::Sipo {
+                bits,
+                clock_state: false,
+            },
+            false,
+        )
+    }
+
+    pub fn piso(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        bits: usize,
+        high_voltage: f64,
+        data: Vec<bool>,
+    ) -> Self {
+        let _ = (x2, y2);
+        let bits = bits.max(1);
+        let new_bhvr = (flags & PISO_NEW) != 0;
+        let n = (if new_bhvr { 4 } else { 3 }) + bits;
+        let mut pins = vec![ChipPin::inn(0, SIDE_W); n];
+        pins[0] = ChipPin::inn(1, SIDE_W);
+        pins[1] = ChipPin::inn(2, SIDE_W);
+        pins[2] = ChipPin::out(1, SIDE_E, false);
+        let data_pin_index = if new_bhvr {
+            pins[3] = ChipPin::inn(0, SIDE_W);
+            4
+        } else {
+            3
+        };
+        for i in 0..bits {
+            pins[data_pin_index + i] = ChipPin::inn(bits as i32 - i as i32, SIDE_N);
+        }
+        let data = if data.len() == bits {
+            data
+        } else {
+            let mut d = vec![false; bits];
+            for (i, v) in data.iter().take(bits).enumerate() {
+                d[i] = *v;
+            }
+            d
+        };
+        if new_bhvr && !data.is_empty() {
+            pins[2].value = data[0];
+        }
+        Self::assemble(
+            (x1, y1),
+            flags,
+            bits as i32 + 2,
+            3,
+            pins,
+            high_voltage,
+            &[],
+            ElementKind::PisoShift,
+            ChipLogic::Piso {
+                data,
+                data_index: 0,
+                clock_state: false,
+                load_state: false,
+                data_pin_index,
+            },
+            false,
+        )
+    }
+
     fn write_output(&mut self, n: usize, value: bool) {
         if n < self.pins.len() {
             self.pins[n].value = value;
@@ -535,6 +803,11 @@ impl ChipElm {
             ElementKind::Latch => self.exec_latch(),
             ElementKind::Multiplexer => self.exec_mux(),
             ElementKind::Demultiplexer => self.exec_demux(),
+            ElementKind::Counter => self.exec_counter(),
+            ElementKind::Counter2 => self.exec_counter2(),
+            ElementKind::RingCounter => self.exec_ring(),
+            ElementKind::SipoShift => self.exec_sipo(),
+            ElementKind::PisoShift => self.exec_piso(),
             _ => {}
         }
     }
@@ -763,6 +1036,236 @@ impl ChipElm {
         }
         self.write_output(output_pin + sel, inp);
     }
+
+    fn exec_counter(&mut self) {
+        let flags = self.ports.flags;
+        let neg = (flags & CTR_NEG_EDGE) != 0;
+        let ChipLogic::Counter {
+            bits,
+            invert_reset,
+            modulus,
+        } = self.logic
+        else {
+            return;
+        };
+        if self.pin(0) != neg && self.last_clock == neg {
+            let dir: i32 = if (flags & CTR_UP_DOWN) != 0 && self.pin(bits + 2) {
+                -1
+            } else {
+                1
+            };
+            let last_bit = 2 + bits - 1;
+            let mut value: i32 = 0;
+            for i in 0..bits {
+                if self.pin(last_bit - i) {
+                    value |= 1 << i;
+                }
+            }
+            value += dir;
+            if modulus != 0 {
+                value = (value + modulus).rem_euclid(modulus);
+            }
+            for i in 0..bits {
+                self.write_output(last_bit - i, (value & (1 << i)) != 0);
+            }
+        }
+        if !self.pin(1) == invert_reset {
+            for i in 0..bits {
+                self.write_output(i + 2, false);
+            }
+        }
+        self.last_clock = self.pin(0);
+    }
+
+    fn exec_counter2(&mut self) {
+        let ChipLogic::Counter2 {
+            bits,
+            modulus,
+            clk,
+            clr,
+            enp,
+            ent,
+            rco,
+            load,
+            carry,
+        } = self.logic
+        else {
+            return;
+        };
+        let mut carry = carry;
+        if self.pin(clk) && !self.last_clock {
+            if self.pin(enp) && self.pin(ent) {
+                let last_bit = bits - 1;
+                let mut value: i32 = 0;
+                for i in 0..bits {
+                    if self.pin(last_bit - i) {
+                        value |= 1 << i;
+                    }
+                }
+                value += 1;
+                let realmod = if modulus == 0 { 1 << bits } else { modulus };
+                value %= realmod;
+                for i in 0..bits {
+                    self.write_output(last_bit - i, (value & (1 << i)) != 0);
+                }
+                carry = value == realmod - 1;
+            }
+            if !self.pin(load) {
+                for i in 0..bits {
+                    self.write_output(i, self.pin(i + bits));
+                }
+                let last_bit = bits - 1;
+                let mut value: i32 = 0;
+                for i in 0..bits {
+                    if self.pin(last_bit - i) {
+                        value |= 1 << i;
+                    }
+                }
+                let realmod = if modulus == 0 { 1 << bits } else { modulus };
+                carry = value == realmod - 1;
+            }
+        }
+        if !self.pin(clr) {
+            for i in 0..bits {
+                self.write_output(i, false);
+            }
+            carry = false;
+        }
+        self.last_clock = self.pin(clk);
+        let rco_val = carry && self.pin(ent);
+        self.write_output(rco, rco_val);
+        if let ChipLogic::Counter2 { carry: c, .. } = &mut self.logic {
+            *c = carry;
+        }
+    }
+
+    fn exec_ring(&mut self) {
+        if self.just_loaded {
+            self.just_loaded = false;
+            return;
+        }
+        let invert_reset = (self.ports.flags & RING_RESET_HIGH) == 0;
+        let ChipLogic::RingCounter {
+            bits,
+            clock_inhibit,
+        } = self.logic
+        else {
+            return;
+        };
+        let running = !clock_inhibit.is_some_and(|p| self.pin(p));
+        let mut i = 0;
+        while i != bits {
+            if self.pin(i + 2) {
+                break;
+            }
+            i += 1;
+        }
+        if self.pin(0) && !self.last_clock && running {
+            if i < bits {
+                self.write_output(i + 2, false);
+                i += 1;
+            }
+            i %= bits;
+            self.write_output(i + 2, true);
+        }
+        if self.pin(1) != invert_reset || i == bits {
+            for k in 1..bits {
+                self.write_output(k + 2, false);
+            }
+            self.write_output(2, true);
+        }
+        self.last_clock = self.pin(0);
+    }
+
+    fn exec_sipo(&mut self) {
+        let ChipLogic::Sipo { bits, clock_state } = self.logic else {
+            return;
+        };
+        let clk = self.pin(1);
+        if clk != clock_state {
+            if let ChipLogic::Sipo {
+                clock_state: cs, ..
+            } = &mut self.logic
+            {
+                *cs = clk;
+            }
+            if clk && bits > 0 {
+                for i in (0..bits.saturating_sub(1)).rev() {
+                    let v = self.pin(2 + i);
+                    self.write_output(2 + i + 1, v);
+                }
+                let d = self.pin(0);
+                self.write_output(2, d);
+            }
+        }
+    }
+
+    fn exec_piso(&mut self) {
+        let new_bhvr = (self.ports.flags & PISO_NEW) != 0;
+        let ChipLogic::Piso {
+            data_pin_index,
+            load_state,
+            clock_state,
+            ..
+        } = self.logic
+        else {
+            return;
+        };
+        let ld = self.pin(0);
+        if ld != load_state {
+            let first = self.pin(data_pin_index);
+            let loaded: Vec<bool> = (0..self.pins.len()).map(|i| self.pin(i)).collect();
+            if let ChipLogic::Piso {
+                data,
+                data_index,
+                load_state: ls,
+                ..
+            } = &mut self.logic
+            {
+                *ls = ld;
+                if ld && !data.is_empty() {
+                    *data_index = if new_bhvr { 0 } else { -1 };
+                    for i in 0..data.len() {
+                        data[i] = loaded.get(data_pin_index + i).copied().unwrap_or(false);
+                    }
+                }
+            }
+            if ld && new_bhvr {
+                self.write_output(2, first);
+            }
+        }
+        let clk = self.pin(1);
+        let ser = new_bhvr && self.pin(3);
+        if clk != clock_state {
+            let mut q = None;
+            if let ChipLogic::Piso {
+                data,
+                data_index,
+                clock_state: cs,
+                ..
+            } = &mut self.logic
+            {
+                *cs = clk;
+                if clk && !data.is_empty() {
+                    if *data_index >= 0 {
+                        let idx = *data_index as usize;
+                        if idx < data.len() {
+                            data[idx] = ser;
+                        }
+                    }
+                    *data_index += 1;
+                    if *data_index >= data.len() as i32 {
+                        *data_index = 0;
+                    }
+                    let idx = *data_index as usize;
+                    q = Some(data[idx]);
+                }
+            }
+            if let Some(v) = q {
+                self.write_output(2, v);
+            }
+        }
+    }
 }
 
 /// MSB-first bit pins, matching ChipElm `makeBitPins` default order.
@@ -778,6 +1281,27 @@ fn bit_pins(
     for i in 0..count {
         let p = pos + (count as i32 - 1 - i as i32);
         pins[offset + i] = if output {
+            ChipPin::out(p, side, state)
+        } else {
+            ChipPin::inn(p, side)
+        };
+    }
+}
+
+/// Reversed pin-index order (`makeBitPins(..., reversed=true)`): LSB at `offset+count-1`.
+fn bit_pins_rev(
+    pins: &mut [ChipPin],
+    count: usize,
+    pos: i32,
+    side: i32,
+    offset: usize,
+    output: bool,
+    state: bool,
+) {
+    for i in 0..count {
+        let ii = offset + count - 1 - i;
+        let p = pos + (count as i32 - 1 - i as i32);
+        pins[ii] = if output {
             ChipPin::out(p, side, state)
         } else {
             ChipPin::inn(p, side)
@@ -900,6 +1424,25 @@ impl Element for ChipElm {
         }
         if let ChipLogic::Latch { output_values, .. } = &mut self.logic {
             output_values.fill(false);
+        }
+        if let ChipLogic::Sipo { clock_state, .. } = &mut self.logic {
+            *clock_state = false;
+        }
+        if let ChipLogic::Piso {
+            data,
+            data_index,
+            clock_state,
+            load_state,
+            ..
+        } = &mut self.logic
+        {
+            data.fill(false);
+            *data_index = 0;
+            *clock_state = false;
+            *load_state = false;
+        }
+        if let ChipLogic::Counter2 { carry, .. } = &mut self.logic {
+            *carry = false;
         }
     }
 }

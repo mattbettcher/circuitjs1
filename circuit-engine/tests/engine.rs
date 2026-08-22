@@ -689,6 +689,121 @@ L 32 96 32 112 0 1 false 5 0
 }
 
 #[test]
+fn counter_increments_on_rising_clock() {
+    let mut c = parse_dump(
+        "\
+g 160 128 160 144 0
+L 0 0 16 0 0 0 false 5 0
+L 0 96 16 96 0 1 false 5 0
+164 0 0 64 48 0 4 0 0 0 0 true 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let q0 = c.element_volts(3)[5];
+    assert!(q0.abs() < 0.5, "LSB before clock={q0}");
+    c.toggle(1);
+    c.step().unwrap();
+    c.step().unwrap();
+    let q1 = c.element_volts(3)[5];
+    assert!(
+        (q1 - 5.0).abs() < 0.02,
+        "LSB after rising edge={q1} volts={:?}",
+        c.element_volts(3)
+    );
+}
+
+#[test]
+fn counter2_increments_when_enabled() {
+    let mut c = parse_dump(
+        "\
+g 200 0 200 16 0
+L 0 0 16 0 0 0 false 5 0
+L 0 160 16 160 0 1 false 5 0
+L 0 192 16 192 0 1 false 5 0
+L 96 160 112 160 0 1 false 5 0
+L 96 192 112 192 0 1 false 5 0
+421 0 0 64 48 0 4 0 0 0 0 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    c.toggle(1);
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(6);
+    assert!((v[3] - 5.0).abs() < 0.02, "LSB={:?} volts={v:?}", v.get(3));
+}
+
+#[test]
+fn ring_counter_resets_q0_when_all_low() {
+    let mut c = parse_dump(
+        "\
+g 160 80 160 96 0
+163 0 0 64 48 2 3
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(1);
+    assert!(
+        (v[2] - 5.0).abs() < 0.02,
+        "Q0 after all-low reset={:?} volts={v:?}",
+        v.get(2)
+    );
+}
+
+#[test]
+fn sipo_shifts_d_into_q0() {
+    let mut c = parse_dump(
+        "\
+g 160 96 160 112 0
+L 0 32 16 32 0 1 false 5 0
+L 0 64 16 64 0 0 false 5 0
+189 0 0 64 48 0 4
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.toggle(2);
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!(
+        (v[2] - 5.0).abs() < 0.02,
+        "Q0 after rising CLK={:?} volts={v:?}",
+        v.get(2)
+    );
+}
+
+#[test]
+fn piso_load_sets_serial_q() {
+    let mut c = parse_dump(
+        "\
+g 200 80 200 96 0
+L 0 32 16 32 0 0 false 5 0
+L 160 -32 160 -48 0 1 false 5 0
+186 0 0 64 48 2 4
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    c.toggle(1);
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!(
+        (v[2] - 5.0).abs() < 0.02,
+        "Q after load={:?} volts={v:?}",
+        v.get(2)
+    );
+}
+
+#[test]
 fn fuse_and_ldr_parse() {
     let mut c = parse_dump(
         "\
