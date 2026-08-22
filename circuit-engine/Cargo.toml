@@ -1,0 +1,16 @@
+[package]
+name = "circuit-engine"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Modified nodal analysis circuit engine ported from CircuitJS1"
+readme = false
+publish = false
+
+[[bin]]
+name = "simulate"
+path = "src/bin/simulate.rs"
+
+[lib]
+name = "circuit_engine"
+path = "src/lib.rs"

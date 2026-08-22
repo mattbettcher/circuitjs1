@@ -72,4 +72,7 @@ Temporary Items
 /.gradle
 *.tgz
 
+# Rust engine
+circuit-engine/target/
+
 /.apt_generated/

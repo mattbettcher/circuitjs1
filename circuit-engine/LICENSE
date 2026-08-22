@@ -1,0 +1,4 @@
+This crate is a port of CircuitJS1 simulation algorithms and is licensed
+under the GNU General Public License, version 2 or later.
+
+See ../COPYING.txt for the full license text.
