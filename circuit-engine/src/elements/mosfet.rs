@@ -1,5 +1,6 @@
 use crate::context::SimContext;
 use crate::element::{Element, ElementKind};
+use crate::elements::diode::JunctionDiode;
 use crate::geom::{dsign, interp2};
 use crate::ports::Ports;
 
@@ -12,10 +13,13 @@ pub struct MosfetElm {
     pub vt: f64,
     pub beta: f64,
     pub lambda: f64,
+    pub is_jfet: bool,
+    gs_diode: JunctionDiode,
     last_v0: f64,
     last_v1: f64,
     last_v2: f64,
     ids: f64,
+    gate_current: f64,
 }
 
 impl MosfetElm {
@@ -48,11 +52,28 @@ impl MosfetElm {
             vt,
             beta,
             lambda: 0.0,
+            is_jfet: false,
+            gs_diode: JunctionDiode::default_junction(),
             last_v0: 0.0,
             last_v1: 0.0,
             last_v2: 0.0,
             ids: 0.0,
+            gate_current: 0.0,
         }
+    }
+
+    pub fn jfet_from_dump(
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        flags: i32,
+        vt: f64,
+        beta: f64,
+    ) -> Self {
+        let mut m = Self::from_dump(x1, y1, x2, y2, flags, vt, beta);
+        m.is_jfet = true;
+        m
     }
 
     fn non_convergence(&self, ctx: &SimContext, last: f64, now: f64) -> bool {
@@ -78,20 +99,29 @@ impl Element for MosfetElm {
         &self.ports.posts
     }
     fn kind(&self) -> ElementKind {
-        ElementKind::Mosfet
+        if self.is_jfet {
+            ElementKind::Jfet
+        } else {
+            ElementKind::Mosfet
+        }
     }
     fn tag(&self) -> &'static str {
-        if self.pnp < 0 {
-            "PMOS"
-        } else {
-            "NMOS"
+        match (self.is_jfet, self.pnp < 0) {
+            (true, true) => "P-JFET",
+            (true, false) => "N-JFET",
+            (false, true) => "PMOS",
+            (false, false) => "NMOS",
         }
     }
     fn non_linear(&self) -> bool {
         true
     }
     fn get_connection(&self, n1: usize, n2: usize) -> bool {
-        !(n1 == 0 || n2 == 0)
+        if self.is_jfet {
+            true
+        } else {
+            !(n1 == 0 || n2 == 0)
+        }
     }
     fn get_matrix_connection(&self, _n1: usize, _n2: usize) -> bool {
         true
@@ -182,12 +212,26 @@ impl Element for MosfetElm {
         ctx.stamp_matrix(n[source], n[0], -gm);
         ctx.stamp_right_side(n[drain], rs);
         ctx.stamp_right_side(n[source], -rs);
+
+        if self.is_jfet {
+            let n_gate = self.ports.nodes[0];
+            let n_src = self.ports.nodes[1];
+            let vd = self.pnp as f64 * (self.ports.volts[0] - self.ports.volts[1]);
+            if self.pnp < 0 {
+                self.gs_diode.do_step(ctx, n_src, n_gate, vd);
+            } else {
+                self.gs_diode.do_step(ctx, n_gate, n_src, vd);
+            }
+            self.gate_current = self.pnp as f64 * self.gs_diode.current(vd);
+        }
     }
     fn reset(&mut self) {
         self.last_v0 = 0.0;
         self.last_v1 = 0.0;
         self.last_v2 = 0.0;
         self.ids = 0.0;
+        self.gate_current = 0.0;
+        self.gs_diode.reset();
         for v in &mut self.ports.volts {
             *v = 0.0;
         }

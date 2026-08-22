@@ -8,6 +8,7 @@ pub const WF_SQUARE: i32 = 2;
 pub const WF_TRIANGLE: i32 = 3;
 pub const WF_SAWTOOTH: i32 = 4;
 pub const WF_PULSE: i32 = 5;
+pub const WF_VAR: i32 = 7;
 pub const FLAG_COS: i32 = 2;
 
 const PI: f64 = std::f64::consts::PI;
@@ -101,12 +102,13 @@ impl VoltageElm {
     }
 
     pub fn voltage(&self, ctx: &SimContext) -> f64 {
-        if self.waveform != WF_DC && ctx.dc_analysis {
+        if self.waveform != WF_DC && self.waveform != WF_VAR && ctx.dc_analysis {
             return self.bias;
         }
         let w = 2.0 * PI * (ctx.t - self.freq_time_zero) * self.frequency + self.phase_shift;
         match self.waveform {
             WF_DC => self.max_voltage + self.bias,
+            WF_VAR => self.frequency,
             WF_AC => w.sin() * self.max_voltage + self.bias,
             WF_SQUARE => {
                 let wm = w.rem_euclid(2.0 * PI);
@@ -179,7 +181,14 @@ impl Element for VoltageElm {
             WF_TRIANGLE => "triangle",
             WF_SAWTOOTH => "sawtooth",
             WF_PULSE => "pulse",
+            WF_VAR => "var",
             _ => "",
+        }
+    }
+    fn set_slider(&mut self, t: f64) {
+        if self.waveform == WF_VAR {
+            let t = t.clamp(0.0, 1.0);
+            self.frequency = self.bias + t * (self.max_voltage - self.bias);
         }
     }
     fn voltage_source_count(&self) -> usize {

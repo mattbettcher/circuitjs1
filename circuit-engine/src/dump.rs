@@ -1,14 +1,16 @@
 use crate::circuit::Circuit;
 use crate::element::Element;
 use crate::elements::{
-    Capacitor, CurrentElm, Diode, DiodeModel, DiodeStyle, Ground, Inductor, LabeledNode, MosfetElm,
-    OpAmpElm, PotElm, ProbeElm, Resistor, Switch2Elm, SwitchElm, TransistorElm, VccsElm, VcvsElm,
-    VoltageElm, Wire, FLAG_FWDROP, FLAG_MODEL,
+    AnalogSourceElm, AnalogSwitchElm, Capacitor, Cc2Elm, CccsElm, CcvsElm, CrystalElm, CurrentElm,
+    Diode, DiodeModel, DiodeStyle, FuseElm, Ground, Inductor, LabeledNode, LdrElm, MemristorElm,
+    MosfetElm, OpAmpElm, PotElm, ProbeElm, RelayElm, Resistor, SchmittElm, SparkGapElm,
+    Switch2Elm, SwitchElm, TappedTransformerElm, ThermistorElm, TransformerElm, TransistorElm,
+    VaractorElm, VccsElm, VcvsElm, VoltageElm, Wire, FLAG_FWDROP, FLAG_MODEL,
 };
 use crate::error::{Result, SimError};
 use crate::geom::{parse_linear_gain, unescape};
 
-/// Parse a CircuitJS1 text dump (wave-1/2 subset plus r,c,l,v,i,w,g,d).
+/// Parse a CircuitJS1 text dump (analog subset plus r,c,l,v,i,w,g,d).
 pub fn parse_dump(text: &str) -> Result<Circuit> {
     let mut circuit = Circuit::new();
     for raw in text.lines() {
@@ -214,6 +216,201 @@ pub fn parse_dump(text: &str) -> Result<Circuit> {
                 let beta = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.02);
                 Box::new(MosfetElm::from_dump(x1, y1, x2, y2, flags, vt, beta))
             }
+            t if t == b'j' as i32 => {
+                let vt = tok.next().and_then(|s| s.parse().ok()).unwrap_or(-4.0);
+                let beta = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.00125);
+                Box::new(MosfetElm::jfet_from_dump(x1, y1, x2, y2, flags, vt, beta))
+            }
+            t if t == b'T' as i32 => {
+                let l = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4.0);
+                let ratio = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+                let i0 = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let i1 = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let k = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.999);
+                let sat = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                Box::new(TransformerElm::from_dump(
+                    x1, y1, x2, y2, flags, l, ratio, i0, i1, k, sat,
+                ))
+            }
+            169 => {
+                let l = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4.0);
+                let ratio = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+                let _i0 = tok.next();
+                let _i1 = tok.next();
+                let _i2 = tok.next();
+                let k = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.99);
+                Box::new(TappedTransformerElm::from_dump(
+                    x1, y1, x2, y2, flags, l, ratio, k,
+                ))
+            }
+            159 | 160 => {
+                let r_on = tok.next().and_then(|s| s.parse().ok()).unwrap_or(20.0);
+                let r_off = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e10);
+                let th = tok.next().and_then(|s| s.parse().ok()).unwrap_or(2.5);
+                Box::new(AnalogSwitchElm::from_dump(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    r_on,
+                    r_off,
+                    th,
+                    dump_type == 160,
+                ))
+            }
+            214 => {
+                let _ic = tok.next();
+                let expr = tok.next().unwrap_or("2*a");
+                Box::new(CcvsElm::new(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    parse_linear_gain(expr),
+                ))
+            }
+            215 => {
+                let _ic = tok.next();
+                let expr = tok.next().unwrap_or("2*a");
+                Box::new(CccsElm::new(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    parse_linear_gain(expr),
+                ))
+            }
+            404 => {
+                let r = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0613);
+                let i2t = tok.next().and_then(|s| s.parse().ok()).unwrap_or(6.73);
+                let heat = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let blown = tok.next().is_some_and(|s| s.eq_ignore_ascii_case("true"));
+                Box::new(FuseElm::from_dump(x1, y1, x2, y2, flags, r, i2t, heat, blown))
+            }
+            187 => {
+                let on_r = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e3);
+                let off_r = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e9);
+                let br = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e3);
+                let hold = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.001);
+                Box::new(SparkGapElm::from_dump(
+                    x1, y1, x2, y2, flags, on_r, off_r, br, hold,
+                ))
+            }
+            t if t == b'm' as i32 => {
+                let r_on = tok.next().and_then(|s| s.parse().ok()).unwrap_or(100.0);
+                let r_off = tok.next().and_then(|s| s.parse().ok()).unwrap_or(16000.0);
+                let dw = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let tw = tok.next().and_then(|s| s.parse().ok()).unwrap_or(10e-9);
+                let mob = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e-10);
+                let cur = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                Box::new(MemristorElm::from_dump(
+                    x1, y1, x2, y2, flags, r_on, r_off, dw, tw, mob, cur,
+                ))
+            }
+            374 => {
+                let pos = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.34);
+                Box::new(LdrElm::from_dump(x1, y1, x2, y2, flags, pos))
+            }
+            350 => {
+                let r25 = tok.next().and_then(|s| s.parse().ok()).unwrap_or(10000.0);
+                let r50 = tok.next().and_then(|s| s.parse().ok()).unwrap_or(3605.0);
+                let min_t = tok.next().and_then(|s| s.parse().ok()).unwrap_or(-40.0);
+                let max_t = tok.next().and_then(|s| s.parse().ok()).unwrap_or(150.0);
+                let pos = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.34);
+                Box::new(ThermistorElm::from_dump(
+                    x1, y1, x2, y2, flags, r25, r50, min_t, max_t, pos,
+                ))
+            }
+            178 => {
+                let poles = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1);
+                let l = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.2);
+                let ic = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let r_on = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.05);
+                let r_off = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1e6);
+                let on_i = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.02);
+                let coil_r = tok.next().and_then(|s| s.parse().ok()).unwrap_or(20.0);
+                let off_i = tok.next().and_then(|s| s.parse().ok()).unwrap_or(on_i);
+                let swt = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let pos = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                Box::new(RelayElm::from_dump(
+                    x1, y1, x2, y2, flags, poles, l, ic, r_on, r_off, on_i, coil_r, off_i, swt,
+                    pos,
+                ))
+            }
+            182 | 183 => {
+                let slew = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.5);
+                let lo = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1.66);
+                let hi = tok.next().and_then(|s| s.parse().ok()).unwrap_or(3.33);
+                let on = tok.next().and_then(|s| s.parse().ok()).unwrap_or(5.0);
+                let off = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                Box::new(SchmittElm::from_dump(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    flags,
+                    dump_type == 183,
+                    slew,
+                    lo,
+                    hi,
+                    on,
+                    off,
+                ))
+            }
+            179 => {
+                let gain = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+                Box::new(Cc2Elm::from_dump(x1, y1, x2, y2, flags, gain))
+            }
+            176 => {
+                let _diode = parse_diode_model(&mut tok, flags, None);
+                let cvd = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                let base_c = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4e-12);
+                Box::new(VaractorElm::from_dump(
+                    x1, y1, x2, y2, flags, cvd, base_c, 0.805904783,
+                ))
+            }
+            412 => {
+                // Composite dump is escaped child netlists; simulate the default crystal.
+                let rest: Vec<&str> = tok.collect();
+                let nums: Vec<f64> = rest.iter().filter_map(|s| s.parse().ok()).collect();
+                let (pc, sc, l, r) = if nums.len() >= 4 {
+                    (nums[0], nums[1], nums[2], nums[3])
+                } else {
+                    (28.7e-12, 0.1e-12, 2.5e-3, 6.4)
+                };
+                Box::new(CrystalElm::from_dump(x1, y1, x2, y2, flags, pc, sc, l, r))
+            }
+            172 => {
+                let mut v = parse_voltage(&mut tok, x1, y1, x2, y2, flags, true);
+                v.waveform = crate::elements::WF_VAR;
+                Box::new(v)
+            }
+            170 => {
+                let min_f = tok.next().and_then(|s| s.parse().ok()).unwrap_or(20.0);
+                let max_f = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4000.0);
+                let max_v = tok.next().and_then(|s| s.parse().ok()).unwrap_or(5.0);
+                let stime = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.1);
+                Box::new(AnalogSourceElm::sweep(
+                    x1, y1, x2, y2, flags, min_f, max_f, max_v, stime,
+                ))
+            }
+            200 => {
+                let cf = tok.next().and_then(|s| s.parse().ok()).unwrap_or(1000.0);
+                let sf = tok.next().and_then(|s| s.parse().ok()).unwrap_or(40.0);
+                let mv = tok.next().and_then(|s| s.parse().ok()).unwrap_or(5.0);
+                Box::new(AnalogSourceElm::am(x1, y1, x2, y2, flags, cf, sf, mv))
+            }
+            201 => {
+                let cf = tok.next().and_then(|s| s.parse().ok()).unwrap_or(800.0);
+                let sf = tok.next().and_then(|s| s.parse().ok()).unwrap_or(40.0);
+                let mv = tok.next().and_then(|s| s.parse().ok()).unwrap_or(5.0);
+                let dev = tok.next().and_then(|s| s.parse().ok()).unwrap_or(200.0);
+                Box::new(AnalogSourceElm::fm(x1, y1, x2, y2, flags, cf, sf, mv, dev))
+            }
+            t if t == b'A' as i32 => Box::new(AnalogSourceElm::antenna(x1, y1, x2, y2, flags)),
             other => {
                 return Err(SimError::Parse(format!(
                     "unsupported element dump type {other}"

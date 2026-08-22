@@ -374,7 +374,7 @@ fn draw_element(
         ElementKind::Vcvs | ElementKind::Vccs => {
             multi_star(painter, pts, volts, opts.voltage_range, w);
         }
-        ElementKind::Transistor | ElementKind::Mosfet => {
+        ElementKind::Transistor | ElementKind::Mosfet | ElementKind::Jfet => {
             let base = pts[0];
             let a = pts.get(1).copied().unwrap_or(p2);
             let b = pts.get(2).copied().unwrap_or(p2);
@@ -390,6 +390,44 @@ fn draw_element(
                 [body - n, body + n],
                 Stroke::new(w + 0.6, Color32::from_gray(210)),
             );
+        }
+        ElementKind::Ldr
+        | ElementKind::Thermistor
+        | ElementKind::Fuse
+        | ElementKind::Memristor => {
+            let (l1, l2) = leads(p1, p2, 32.0 * zoom / 3.0);
+            stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
+            stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
+            zigzag(painter, l1, l2, v0, v1, opts.voltage_range, w, 6.0 * zoom / 3.0);
+        }
+        ElementKind::SparkGap | ElementKind::Varactor | ElementKind::Crystal => {
+            let (l1, l2) = leads(p1, p2, 10.0 * zoom / 3.0);
+            stroke_grad(painter, p1, l1, v0, v0, opts.voltage_range, w);
+            stroke_grad(painter, l2, p2, v1, v1, opts.voltage_range, w);
+            plate(painter, l1, p2 - p1, v0, opts.voltage_range, w, 12.0 * zoom / 3.0);
+            plate(painter, l2, p2 - p1, v1, opts.voltage_range, w, 12.0 * zoom / 3.0);
+        }
+        ElementKind::Schmitt | ElementKind::InvertingSchmitt => {
+            stroke_grad(painter, p1, p2, v0, v1, opts.voltage_range, w);
+        }
+        ElementKind::Sweep
+        | ElementKind::AmSource
+        | ElementKind::FmSource
+        | ElementKind::Antenna => {
+            stroke_grad(painter, p1, p2, v0, v0, opts.voltage_range, w);
+            painter.circle_filled(p2, 7.0 * zoom / 3.0, voltage_color(v0, opts.voltage_range));
+            painter.circle_stroke(p2, 7.0 * zoom / 3.0, Stroke::new(w, Color32::WHITE));
+        }
+        ElementKind::Transformer
+        | ElementKind::TappedTransformer
+        | ElementKind::AnalogSwitch
+        | ElementKind::AnalogSwitchSpdt
+        | ElementKind::Gyrator
+        | ElementKind::Relay
+        | ElementKind::Ccvs
+        | ElementKind::Cccs
+        | ElementKind::Ccii => {
+            multi_star(painter, pts, volts, opts.voltage_range, w);
         }
     }
 

@@ -86,6 +86,69 @@ pub fn parse_linear_gain(expr: &str) -> f64 {
     }
 }
 
+pub const FLAG_TRANSFORMER_REVERSE: i32 = 4;
+pub const FLAG_TRANSFORMER_VERTICAL: i32 = 8;
+pub const FLAG_TRANSFORMER_FLIP: i32 = 16;
+
+/// Transformer / gyrator posts: winding 1 is 0–2, winding 2 is 1–3.
+pub fn transformer_posts(p1: (i32, i32), p2: (i32, i32), flags: i32) -> Vec<(i32, i32)> {
+    let vertical = (flags & FLAG_TRANSFORMER_VERTICAL) != 0;
+    let width = if vertical {
+        -((p2.0 - p1.0).abs().max(32))
+    } else {
+        (p2.1 - p1.1).abs().max(32)
+    };
+    let flip = if (flags & FLAG_TRANSFORMER_FLIP) != 0 {
+        -1
+    } else {
+        1
+    };
+    let off = -(dsign(p1, p2) * width * flip) as f64;
+    let mut posts = vec![
+        p1,
+        p2,
+        interp_off(p1, p2, 0.0, off),
+        interp_off(p1, p2, 1.0, off),
+    ];
+    if (flags & FLAG_TRANSFORMER_REVERSE) != 0 {
+        posts.swap(1, 3);
+    }
+    posts
+}
+
+pub fn tapped_transformer_posts(p1: (i32, i32), p2: (i32, i32), flags: i32) -> Vec<(i32, i32)> {
+    let flip = if (flags & 1) != 0 { -1.0 } else { 1.0 };
+    let hs = 32.0 * flip;
+    vec![
+        p1,
+        interp_off(p1, p2, 0.0, -hs * 2.0),
+        p2,
+        interp_off(p1, p2, 1.0, -hs),
+        interp_off(p1, p2, 1.0, -hs * 2.0),
+    ]
+}
+
+pub fn analog_switch_posts(p1: (i32, i32), p2: (i32, i32)) -> Vec<(i32, i32)> {
+    vec![p1, p2, interp_off(p1, p2, 0.5, -16.0)]
+}
+
+pub fn analog_switch2_posts(p1: (i32, i32), p2: (i32, i32)) -> Vec<(i32, i32)> {
+    let (t0, t1) = interp2(p1, p2, 1.0, 16.0);
+    vec![p1, t0, t1, interp_off(p1, p2, 0.5, 16.0)]
+}
+
+/// CCII posts: X and Y on the west side, Z on the east (ChipElm sizeX=2, sizeY=3).
+pub fn cc2_posts(p1: (i32, i32), flags: i32) -> Vec<(i32, i32)> {
+    let csize = if (flags & 1) != 0 { 1 } else { 2 };
+    let cspc = 8 * csize;
+    let cspc2 = cspc * 2;
+    vec![
+        (p1.0, p1.1),
+        (p1.0, p1.1 + 2 * cspc),
+        (p1.0 + 2 * cspc2, p1.1 + cspc),
+    ]
+}
+
 pub fn pot_wiper(p1: (i32, i32), p2: (i32, i32), flags: i32) -> (i32, i32) {
     const GRID: i32 = 8;
     let dx = p2.0 - p1.0;

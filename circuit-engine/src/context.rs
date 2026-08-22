@@ -49,6 +49,17 @@ impl SimContext {
         self.add_rhs_v(vs, x);
     }
 
+    /// Couple two voltage-source rows: A[vs_row][vs_col] += x.
+    pub fn stamp_vs_vs(&mut self, vs_row: usize, vs_col: usize, x: f64) {
+        self.add_a_vv(vs_row, vs_col, x);
+    }
+
+    /// Current from n1→n2 equal to `gain` times the current through `vs`.
+    pub fn stamp_cccs(&mut self, n1: usize, n2: usize, vs: usize, gain: f64) {
+        self.add_a_nv(n1, vs, gain);
+        self.add_a_nv(n2, vs, -gain);
+    }
+
     /// I from n1→n2 controlled by V(ctrl1)−V(ctrl2), transconductance `gm`.
     pub fn stamp_vc_current_source(
         &mut self,
@@ -119,6 +130,19 @@ impl SimContext {
         };
         debug_assert_eq!(v.matrix, mi);
         self.matrices[v.matrix].a[ri][v.row] += x;
+    }
+
+    fn add_a_vv(&mut self, vs_i: usize, vs_j: usize, x: f64) {
+        let (mi, ri) = {
+            let v = &self.voltage_sources[vs_i];
+            (v.matrix, v.row)
+        };
+        let (mj, rj) = {
+            let v = &self.voltage_sources[vs_j];
+            (v.matrix, v.row)
+        };
+        debug_assert_eq!(mi, mj);
+        self.matrices[mi].a[ri][rj] += x;
     }
 
     fn add_rhs_n(&mut self, n: usize, x: f64) {

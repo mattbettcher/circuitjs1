@@ -401,3 +401,108 @@ w 100 100 0 100 0
     let vz = c.element_volts(2)[1] - c.element_volts(2)[0];
     assert!(vz > 5.0 && vz < 6.5, "Vz reverse={vz}");
 }
+
+#[test]
+fn analog_switch_closed_conducts() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 5 0 0 0.5
+r 0 0 100 0 0 1000
+159 100 0 100 100 0 20 10000000000 2.5
+w 100 100 0 100 0
+R 84 50 84 34 0 0 40 5 0 0 0.5
+g 0 100 0 116 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let i = c.element_current(1);
+    assert!((i - 5.0 / 1020.0).abs() < 1e-6, "I={i}");
+}
+
+#[test]
+fn transformer_loads_without_nan() {
+    let mut c = parse_dump(
+        "\
+$ 0 0.000001
+v 0 64 0 16 0 1 40 5 0 0 0.5
+r 0 16 64 16 0 100
+T 64 16 128 48 0 4 1 0 0 0.999
+r 64 48 0 48 0 100
+g 0 64 0 80 0
+r 128 16 192 16 0 1000
+w 128 48 192 16 0
+g 192 16 192 32 0
+",
+    )
+    .unwrap();
+    for _ in 0..20 {
+        c.step().unwrap();
+    }
+    let v = c.element_volts(2);
+    assert!(v.iter().all(|x| x.is_finite()), "{v:?}");
+}
+
+#[test]
+fn inverting_schmitt_low_in_is_high_out() {
+    let mut c = parse_dump(
+        "\
+R 0 0 0 16 0 0 40 0 0 0 0.5
+g 0 16 0 32 0
+183 0 0 64 0 0 0.5 1.66 3.33 5 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let vo = c.element_volts(2)[1];
+    assert!((vo - 5.0).abs() < 0.05, "Vo={vo}");
+}
+
+#[test]
+fn jfet_dump_parses() {
+    let mut c = parse_dump(
+        "\
+v 0 64 0 16 0 0 40 5 0 0 0.5
+r 0 16 48 16 0 1000
+j 48 16 80 16 0 -4 0.00125
+g 80 0 80 16 0
+g 0 64 0 80 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!(c.element_volts(2).iter().all(|x| x.is_finite()));
+}
+
+#[test]
+fn ccvs_linear_gain() {
+    let mut c = parse_dump(
+        "\
+v 0 48 0 16 0 0 40 5 0 0 0.5
+r 0 16 48 16 0 5000
+214 48 16 80 16 0 2 1000*a
+g 0 48 0 64 0
+g 48 48 48 64 0
+g 144 48 144 64 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    let vout = c.element_volts(2)[2] - c.element_volts(2)[3];
+    assert!((vout - 1.0).abs() < 0.02, "Vout={vout}");
+}
+
+#[test]
+fn fuse_and_ldr_parse() {
+    let mut c = parse_dump(
+        "\
+v 0 100 0 0 0 0 40 1 0 0 0.5
+404 0 0 100 0 0 10 100 0 false
+374 100 0 100 100 0 0.34 Light
+w 100 100 0 100 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    assert!(c.element_current(1).abs() > 0.0);
+}

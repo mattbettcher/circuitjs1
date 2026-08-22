@@ -304,3 +304,74 @@ impl Element for Diode {
         };
     }
 }
+
+/// Gate–source (or similar) Shockley diode used inside JFET / varactor.
+pub struct JunctionDiode {
+    leakage: f64,
+    vscale: f64,
+    vdcoef: f64,
+    vcrit: f64,
+    lastvoltdiff: f64,
+}
+
+impl JunctionDiode {
+    pub fn default_junction() -> Self {
+        let m = DiodeModel::default_model();
+        let leakage = m.saturation_current;
+        let vscale = m.vscale;
+        let vdcoef = m.vdcoef;
+        let vcrit = vscale * (vscale / (std::f64::consts::SQRT_2 * leakage)).ln();
+        Self {
+            leakage,
+            vscale,
+            vdcoef,
+            vcrit,
+            lastvoltdiff: 0.0,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.lastvoltdiff = 0.0;
+    }
+
+    pub fn current(&self, voltdiff: f64) -> f64 {
+        self.leakage * ((voltdiff * self.vdcoef).exp() - 1.0)
+    }
+
+    pub fn do_step(&mut self, ctx: &mut SimContext, n_anode: usize, n_cathode: usize, mut vd: f64) {
+        if (vd - self.lastvoltdiff).abs() > 0.01 {
+            ctx.converged = false;
+        }
+        vd = self.limit_step(ctx, vd, self.lastvoltdiff);
+        self.lastvoltdiff = vd;
+        let mut gmin = self.leakage * 0.01;
+        if ctx.sub_iterations > 100 {
+            gmin = (-9.0 * 10f64.ln() * (1.0 - ctx.sub_iterations as f64 / 3000.0)).exp();
+            if gmin > 0.1 {
+                gmin = 0.1;
+            }
+        }
+        let eval = (vd * self.vdcoef).exp();
+        let geq = self.vdcoef * self.leakage * eval + gmin;
+        let nc = (eval - 1.0) * self.leakage - geq * vd;
+        ctx.stamp_conductance(n_anode, n_cathode, geq);
+        ctx.stamp_current_source(n_anode, n_cathode, nc);
+    }
+
+    fn limit_step(&mut self, ctx: &mut SimContext, mut vnew: f64, vold: f64) -> f64 {
+        if vnew > self.vcrit && (vnew - vold).abs() > (self.vscale + self.vscale) {
+            if vold > 0.0 {
+                let arg = 1.0 + (vnew - vold) / self.vscale;
+                if arg > 0.0 {
+                    vnew = vold + self.vscale * arg.ln();
+                } else {
+                    vnew = self.vcrit;
+                }
+            } else {
+                vnew = self.vscale * (vnew / self.vscale).ln();
+            }
+            ctx.converged = false;
+        }
+        vnew
+    }
+}
