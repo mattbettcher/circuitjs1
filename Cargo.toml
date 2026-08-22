@@ -1,0 +1,3 @@
+[workspace]
+members = ["circuit-engine", "circuit-app"]
+resolver = "2"

@@ -1,11 +1,51 @@
 use crate::context::SimContext;
 
+/// Schematic / inspector kind for an element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ElementKind {
+    Resistor,
+    Capacitor,
+    Inductor,
+    Voltage,
+    Current,
+    Diode,
+    Wire,
+    Ground,
+}
+
+impl ElementKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Resistor => "resistor",
+            Self::Capacitor => "capacitor",
+            Self::Inductor => "inductor",
+            Self::Voltage => "voltage source",
+            Self::Current => "current source",
+            Self::Diode => "diode",
+            Self::Wire => "wire",
+            Self::Ground => "ground",
+        }
+    }
+}
+
 /// Circuit element that can stamp into the MNA system.
 pub trait Element {
     fn post_count(&self) -> usize {
         self.posts().len()
     }
     fn posts(&self) -> &[(i32, i32)];
+    /// Terminals used for drawing (ground keeps a second point for the symbol).
+    fn geometry(&self) -> &[(i32, i32)] {
+        self.posts()
+    }
+    fn kind(&self) -> ElementKind;
+    /// Primary parameter, if any, as `(value, SI unit)` e.g. `(1000.0, "Ω")`.
+    fn primary_value(&self) -> Option<(f64, &'static str)> {
+        None
+    }
+    fn tag(&self) -> &'static str {
+        ""
+    }
     fn internal_node_count(&self) -> usize {
         0
     }

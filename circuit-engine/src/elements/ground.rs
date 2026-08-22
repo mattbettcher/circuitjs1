@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::Ports;
 
 pub struct Ground {
@@ -26,6 +26,12 @@ impl Element for Ground {
     }
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts[..1]
+    }
+    fn geometry(&self) -> &[(i32, i32)] {
+        &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Ground
     }
     fn is_removable_wire(&self) -> bool {
         true

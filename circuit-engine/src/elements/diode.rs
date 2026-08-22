@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::Ports;
 
 /// Electron thermal voltage at SPICE's default 27 C.
@@ -163,6 +163,9 @@ impl Diode {
 impl Element for Diode {
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Diode
     }
     fn internal_node_count(&self) -> usize {
         if self.model.series_resistance > 0.0 {

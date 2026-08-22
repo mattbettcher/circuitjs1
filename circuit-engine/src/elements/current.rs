@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::Ports;
 
 pub struct CurrentElm {
@@ -19,6 +19,12 @@ impl CurrentElm {
 impl Element for CurrentElm {
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Current
+    }
+    fn primary_value(&self) -> Option<(f64, &'static str)> {
+        Some((self.current_value, "A"))
     }
     fn set_node(&mut self, post: usize, node: usize) {
         self.ports.set_node(post, node);

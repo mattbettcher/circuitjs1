@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::Ports;
 
 pub const WF_DC: i32 = 0;
@@ -117,6 +117,23 @@ impl VoltageElm {
 impl Element for VoltageElm {
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Voltage
+    }
+    fn primary_value(&self) -> Option<(f64, &'static str)> {
+        Some((self.max_voltage, "V"))
+    }
+    fn tag(&self) -> &'static str {
+        match self.waveform {
+            WF_DC => "DC",
+            WF_AC => "AC",
+            WF_SQUARE => "square",
+            WF_TRIANGLE => "triangle",
+            WF_SAWTOOTH => "sawtooth",
+            WF_PULSE => "pulse",
+            _ => "",
+        }
     }
     fn voltage_source_count(&self) -> usize {
         1

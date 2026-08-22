@@ -74,5 +74,6 @@ Temporary Items
 
 # Rust engine
 circuit-engine/target/
+/target/
 
 /.apt_generated/

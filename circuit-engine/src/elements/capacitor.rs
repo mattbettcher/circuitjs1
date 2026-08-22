@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::{Ports, FLAG_BACK_EULER};
 
 pub struct Capacitor {
@@ -65,6 +65,12 @@ impl Capacitor {
 impl Element for Capacitor {
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Capacitor
+    }
+    fn primary_value(&self) -> Option<(f64, &'static str)> {
+        Some((self.capacitance, "F"))
     }
     fn internal_node_count(&self) -> usize {
         if self.series_resistance > 0.0 && !self.dc_omit_internal {

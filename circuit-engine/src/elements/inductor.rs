@@ -1,5 +1,5 @@
 use crate::context::SimContext;
-use crate::element::Element;
+use crate::element::{Element, ElementKind};
 use crate::ports::{Ports, FLAG_BACK_EULER};
 
 pub struct Inductor {
@@ -50,6 +50,12 @@ impl Inductor {
 impl Element for Inductor {
     fn posts(&self) -> &[(i32, i32)] {
         &self.ports.posts
+    }
+    fn kind(&self) -> ElementKind {
+        ElementKind::Inductor
+    }
+    fn primary_value(&self) -> Option<(f64, &'static str)> {
+        Some((self.inductance, "H"))
     }
     fn set_node(&mut self, post: usize, node: usize) {
         self.ports.set_node(post, node);

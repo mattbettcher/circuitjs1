@@ -1,0 +1,13 @@
+[package]
+name = "circuit-app"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Native egui front-end for the CircuitJS1 Rust engine"
+publish = false
+
+[dependencies]
+circuit-engine = { path = "../circuit-engine" }
+eframe = "0.36"
+egui = "0.36"
+rfd = "0.15"
