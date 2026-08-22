@@ -182,6 +182,27 @@ L 0 32 16 32 0 0 false 5 0
 155 0 0 64 48 0
 ",
     },
+    Example {
+        id: "halfadd",
+        name: "Half adder",
+        dump: "\
+g 0 80 0 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 1 false 5 0
+195 0 0 64 32 0
+",
+    },
+    Example {
+        id: "mux",
+        name: "2:1 mux",
+        dump: "\
+g 0 128 0 144 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+L 64 96 64 112 0 0 false 5 0
+184 0 0 64 48 0 1
+",
+    },
 ];
 
 pub fn by_id(id: &str) -> Option<&'static Example> {

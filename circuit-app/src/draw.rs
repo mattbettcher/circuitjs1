@@ -518,7 +518,14 @@ fn draw_element(
         | ElementKind::NorGate
         | ElementKind::XorGate
         | ElementKind::XnorGate
-        | ElementKind::DFlipFlop => {
+        | ElementKind::DFlipFlop
+        | ElementKind::JkFlipFlop
+        | ElementKind::TFlipFlop
+        | ElementKind::HalfAdder
+        | ElementKind::FullAdder
+        | ElementKind::Latch
+        | ElementKind::Multiplexer
+        | ElementKind::Demultiplexer => {
             multi_star(painter, pts, volts, opts.voltage_range, w);
         }
     }

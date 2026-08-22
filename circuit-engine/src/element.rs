@@ -60,6 +60,13 @@ pub enum ElementKind {
     XorGate,
     XnorGate,
     DFlipFlop,
+    JkFlipFlop,
+    TFlipFlop,
+    HalfAdder,
+    FullAdder,
+    Latch,
+    Multiplexer,
+    Demultiplexer,
 }
 
 impl ElementKind {
@@ -122,6 +129,13 @@ impl ElementKind {
             Self::XorGate => "XOR gate",
             Self::XnorGate => "XNOR gate",
             Self::DFlipFlop => "D flip-flop",
+            Self::JkFlipFlop => "JK flip-flop",
+            Self::TFlipFlop => "T flip-flop",
+            Self::HalfAdder => "half adder",
+            Self::FullAdder => "adder",
+            Self::Latch => "latch",
+            Self::Multiplexer => "multiplexer",
+            Self::Demultiplexer => "demultiplexer",
         }
     }
 }

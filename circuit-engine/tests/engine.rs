@@ -571,6 +571,124 @@ L 0 32 16 32 0 0 false 5 0
 }
 
 #[test]
+fn jk_flip_flop_set_on_rising_edge() {
+    let mut c = parse_dump(
+        "\
+g 160 80 160 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+L 0 64 16 64 0 0 false 5 0
+156 0 0 64 48 4
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    c.toggle(2);
+    c.step().unwrap();
+    c.step().unwrap();
+    let q = c.element_volts(4)[3];
+    assert!(
+        (q - 5.0).abs() < 0.02,
+        "Q={q} volts={:?}",
+        c.element_volts(4)
+    );
+}
+
+#[test]
+fn t_flip_flop_toggles() {
+    let mut c = parse_dump(
+        "\
+g 160 80 160 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+193 0 0 64 48 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.toggle(2);
+    c.step().unwrap();
+    c.step().unwrap();
+    let q = c.element_volts(3)[1];
+    assert!((q - 5.0).abs() < 0.02, "Q={q}");
+}
+
+#[test]
+fn half_adder_one_plus_one() {
+    let mut c = parse_dump(
+        "\
+g 0 80 0 96 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 1 false 5 0
+195 0 0 64 32 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!(v[0].abs() < 0.02, "S={v:?}");
+    assert!((v[1] - 5.0).abs() < 0.02, "C={v:?}");
+}
+
+#[test]
+fn mux_selects_i0() {
+    let mut c = parse_dump(
+        "\
+g 0 128 0 144 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 0 false 5 0
+L 64 96 64 112 0 0 false 5 0
+184 0 0 64 48 0 1
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(4);
+    let q = v.last().copied().unwrap_or(0.0);
+    assert!((q - 5.0).abs() < 0.02, "Q={q} volts={v:?}");
+}
+
+#[test]
+fn full_adder_three_ones() {
+    let mut c = parse_dump(
+        "\
+g 0 96 0 112 0
+L 0 0 16 0 0 1 false 5 0
+L 0 32 16 32 0 1 false 5 0
+L 0 64 16 64 0 1 false 5 0
+196 0 0 64 48 0
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(4);
+    assert!((v[2] - 5.0).abs() < 0.02, "S={v:?}");
+    assert!((v[4] - 5.0).abs() < 0.02, "Cout={v:?}");
+}
+
+#[test]
+fn demux_routes_to_q1() {
+    let mut c = parse_dump(
+        "\
+g 0 128 0 144 0
+L 0 0 16 0 0 1 false 5 0
+L 32 96 32 112 0 1 false 5 0
+185 0 0 64 48 0 1
+",
+    )
+    .unwrap();
+    c.step().unwrap();
+    c.step().unwrap();
+    let v = c.element_volts(3);
+    assert!(v[0].abs() < 0.02, "Q0={v:?}");
+    assert!((v[1] - 5.0).abs() < 0.02, "Q1={v:?}");
+}
+
+#[test]
 fn fuse_and_ldr_parse() {
     let mut c = parse_dump(
         "\

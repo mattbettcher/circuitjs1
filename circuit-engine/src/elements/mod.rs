@@ -32,7 +32,7 @@ pub use analog_passives::{FuseElm, GyratorElm, LdrElm, MemristorElm, SparkGapElm
 pub use analog_switch::AnalogSwitchElm;
 pub use capacitor::Capacitor;
 pub use cc2::Cc2Elm;
-pub use chip::DFlipFlopElm;
+pub use chip::{parse_chip_high_voltage, ChipElm, FLAG_ADDER_BITS};
 pub use controlled::{CccsElm, CcvsElm, VccsElm, VcvsElm};
 pub use crystal::CrystalElm;
 pub use current::CurrentElm;

@@ -1,12 +1,13 @@
 use crate::circuit::Circuit;
 use crate::element::Element;
 use crate::elements::{
-    AnalogSourceElm, AnalogSwitchElm, Capacitor, Cc2Elm, CccsElm, CcvsElm, CrystalElm, CurrentElm,
-    DFlipFlopElm, Diode, DiodeModel, DiodeStyle, FuseElm, GateElm, GateFn, Ground, Inductor,
-    InverterElm, LabeledNode, LdrElm, LogicInputElm, LogicOutputElm, MemristorElm, MosfetElm,
-    OpAmpElm, PotElm, ProbeElm, RelayElm, Resistor, SchmittElm, SparkGapElm, Switch2Elm, SwitchElm,
-    TappedTransformerElm, ThermistorElm, TransformerElm, TransistorElm, VaractorElm, VccsElm,
-    VcvsElm, VoltageElm, Wire, FLAG_FWDROP, FLAG_MODEL,
+    parse_chip_high_voltage, AnalogSourceElm, AnalogSwitchElm, Capacitor, Cc2Elm, CccsElm, CcvsElm,
+    ChipElm, CrystalElm, CurrentElm, Diode, DiodeModel, DiodeStyle, FuseElm, GateElm, GateFn,
+    Ground, Inductor, InverterElm, LabeledNode, LdrElm, LogicInputElm, LogicOutputElm,
+    MemristorElm, MosfetElm, OpAmpElm, PotElm, ProbeElm, RelayElm, Resistor, SchmittElm,
+    SparkGapElm, Switch2Elm, SwitchElm, TappedTransformerElm, ThermistorElm, TransformerElm,
+    TransistorElm, VaractorElm, VccsElm, VcvsElm, VoltageElm, Wire, FLAG_ADDER_BITS, FLAG_FWDROP,
+    FLAG_MODEL,
 };
 use crate::error::{Result, SimError};
 use crate::geom::{parse_linear_gain, unescape};
@@ -437,14 +438,51 @@ pub fn parse_dump(text: &str) -> Result<Circuit> {
                 ))
             }
             155 => {
-                const FLAG_CUSTOM_VOLTAGE: i32 = 1 << 13;
-                let hv = if (flags & FLAG_CUSTOM_VOLTAGE) != 0 {
-                    tok.next().and_then(|s| s.parse().ok()).unwrap_or(5.0)
-                } else {
-                    5.0
-                };
+                let hv = parse_chip_high_voltage(&mut tok, flags);
                 let qv = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-                Box::new(DFlipFlopElm::from_dump(x1, y1, x2, y2, flags, hv, qv))
+                Box::new(ChipElm::d_flip_flop(x1, y1, x2, y2, flags, hv, qv))
+            }
+            156 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let qv = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                Box::new(ChipElm::jk_flip_flop(x1, y1, x2, y2, flags, hv, qv))
+            }
+            193 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let qv = tok.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                Box::new(ChipElm::t_flip_flop(x1, y1, x2, y2, flags, hv, qv))
+            }
+            195 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                Box::new(ChipElm::half_adder(x1, y1, x2, y2, flags, hv))
+            }
+            196 => {
+                let bits = if (flags & FLAG_ADDER_BITS) != 0 {
+                    tok.next().and_then(|s| s.parse().ok()).unwrap_or(4)
+                } else {
+                    1
+                };
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                Box::new(ChipElm::full_adder(x1, y1, x2, y2, flags, bits, hv))
+            }
+            168 => {
+                let bits = tok.next().and_then(|s| s.parse().ok()).unwrap_or(4);
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let mut state = Vec::new();
+                while let Some(v) = tok.next().and_then(|s| s.parse().ok()) {
+                    state.push(v);
+                }
+                Box::new(ChipElm::latch(x1, y1, x2, y2, flags, bits, hv, &state))
+            }
+            184 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let sel = tok.next().and_then(|s| s.parse().ok()).unwrap_or(2);
+                Box::new(ChipElm::multiplexer(x1, y1, x2, y2, flags, sel, hv))
+            }
+            185 => {
+                let hv = parse_chip_high_voltage(&mut tok, flags);
+                let sel = tok.next().and_then(|s| s.parse().ok()).unwrap_or(2);
+                Box::new(ChipElm::demultiplexer(x1, y1, x2, y2, flags, sel, hv))
             }
             other => {
                 return Err(SimError::Parse(format!(
